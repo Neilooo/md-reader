@@ -43,5 +43,8 @@ yarn-error.log*
 # Local agent instructions
 AGENTS.md
 
+# Local docs / drafts
+docs/
+
 # pnpm
 pnpm-lock.yaml.bak

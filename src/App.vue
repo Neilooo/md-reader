@@ -596,19 +596,19 @@ watch(exportToast, (v) => {
   flex-direction: column;
 }
 .toolbar {
-  flex: 0 0 auto;
+  flex: 0 0 42px;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--mdr-panel-line);
+  background: linear-gradient(180deg, var(--mdr-panel-soft), var(--mdr-panel));
   user-select: none;
 }
 .filename {
   flex: 1 1 auto;
   font-size: 13px;
-  color: var(--fg-muted);
+  color: var(--mdr-panel-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -618,13 +618,15 @@ watch(exportToast, (v) => {
   font-size: 13px;
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-btn);
-  color: var(--fg);
+  border: 1px solid var(--mdr-panel-line);
+  background: var(--mdr-panel-soft);
+  color: #e7edf6;
   cursor: pointer;
+  min-height: 28px;
 }
 .btn:hover {
-  background: var(--bg-btn-hover);
+  background: var(--mdr-panel-raised);
+  border-color: color-mix(in srgb, var(--mdr-accent-gold) 60%, var(--mdr-panel-line));
 }
 .btn:disabled {
   opacity: 0.5;
@@ -635,6 +637,10 @@ watch(exportToast, (v) => {
   font-size: 14px;
   line-height: 1;
 }
+.export-wrap .btn {
+  border-color: color-mix(in srgb, var(--mdr-accent-gold) 70%, var(--mdr-panel-line));
+  background: color-mix(in srgb, var(--mdr-accent-gold) 18%, var(--mdr-panel-soft));
+}
 .layout {
   flex: 1 1 auto;
   display: flex;
@@ -643,14 +649,15 @@ watch(exportToast, (v) => {
 .left,
 .right {
   flex: 0 0 auto;
-  background: var(--bg-toolbar);
-  border-right: 1px solid var(--border);
+  background: var(--mdr-panel);
+  border-right: 1px solid var(--mdr-panel-line);
   display: flex;
   flex-direction: column;
   min-width: 160px;
   overflow: hidden;
 }
 .right {
+  background: var(--mdr-paper-soft);
   border-right: none;
   border-left: 1px solid var(--border);
 }
@@ -662,8 +669,12 @@ watch(exportToast, (v) => {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
+  color: var(--mdr-panel-muted);
+  border-bottom: 1px solid var(--mdr-panel-line);
+}
+.right .panel-header {
   color: var(--fg-muted);
-  border-bottom: 1px solid var(--border);
+  border-bottom-color: var(--border);
 }
 .panel-error {
   padding: 8px 12px;
@@ -697,7 +708,7 @@ watch(exportToast, (v) => {
 .viewer {
   flex: 1 1 auto;
   overflow: auto;
-  background: var(--bg);
+  background: var(--mdr-paper-soft);
   min-width: 0;
   position: relative;
 }
@@ -725,25 +736,27 @@ watch(exportToast, (v) => {
 }
 .panel-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--mdr-panel-line);
+  background: var(--mdr-panel);
 }
 .tab {
   flex: 1;
-  padding: 6px 0;
+  padding: 7px 0 6px;
   font-size: 12px;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--mdr-panel-muted);
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
 }
 .tab:hover {
-  color: var(--fg);
+  color: #e7edf6;
+  background: var(--mdr-panel-soft);
 }
 .tab.active {
-  color: var(--link);
-  border-bottom-color: var(--link);
+  color: var(--mdr-accent-gold);
+  border-bottom-color: var(--mdr-accent-gold);
+  background: color-mix(in srgb, var(--mdr-accent-gold) 10%, transparent);
 }
 .panel-body {
   flex: 1 1 auto;
@@ -759,22 +772,22 @@ watch(exportToast, (v) => {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 4px;
-  background: var(--bg);
+  margin-top: 6px;
+  background: var(--mdr-paper);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  min-width: 220px;
-  padding: 4px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
+  min-width: 320px;
+  padding: 6px;
   z-index: 30;
 }
 .menu-item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 3px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 9px 12px;
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -783,7 +796,7 @@ watch(exportToast, (v) => {
   text-align: left;
 }
 .menu-item:hover:not(:disabled) {
-  background: var(--bg-btn-hover);
+  background: color-mix(in srgb, var(--mdr-accent-gold) 12%, transparent);
 }
 .menu-item:disabled {
   opacity: 0.45;
@@ -791,7 +804,7 @@ watch(exportToast, (v) => {
 }
 .mi-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .mi-hint {
   font-size: 11px;

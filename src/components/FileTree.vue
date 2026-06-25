@@ -69,34 +69,39 @@ function toggle(key: string) {
 .row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px 3px 8px;
+  gap: 5px;
+  padding: 4px 8px;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--fg);
+  color: #d8dee9;
   user-select: none;
+  border-left: 2px solid transparent;
 }
 .row:hover {
-  background: var(--bg-btn-hover);
+  background: var(--mdr-panel-soft);
 }
 .row.active {
-  background: var(--bg-active);
-  color: var(--link);
+  background: color-mix(in srgb, var(--mdr-accent-gold) 18%, transparent);
+  color: #fff7e8;
+  border-left-color: var(--mdr-accent-gold);
 }
 .caret {
   font-size: 10px;
-  color: var(--fg-muted);
+  color: var(--mdr-panel-muted);
   width: 12px;
   display: inline-block;
 }
 .dir .name {
-  font-weight: 500;
-  color: var(--fg);
+  font-weight: 600;
+  color: #f1f5f9;
 }
 .file .name {
-  color: var(--fg);
+  color: #d8dee9;
+}
+.row.active .name {
+  color: #fff7e8;
 }
 .name {
   overflow: hidden;
