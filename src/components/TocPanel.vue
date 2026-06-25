@@ -5,8 +5,6 @@ import type { Heading } from "../composables/useMarkdown";
 
 const { t } = useI18n();
 
-const { t } = useI18n();
-
 const props = defineProps<{
   headings: Heading[];
   activeId: string;
