@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useI18n } from "vue-i18n";
 import { persistLocale, type AppLocale } from "./i18n";
 import MarkdownView from "./components/MarkdownView.vue";
@@ -177,6 +178,11 @@ function toggleTheme() {
 
 function applyTheme() {
   document.documentElement.dataset.theme = theme.value;
+  try {
+    getCurrentWindow().setTheme(theme.value === "dark" ? "dark" : "light");
+  } catch {
+    /* ignore in non-Tauri environments */
+  }
 }
 
 async function exportHtml() {
