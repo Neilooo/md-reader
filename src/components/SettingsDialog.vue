@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
+
+const { t } = useI18n();
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -19,12 +22,12 @@ const {
   <div v-if="visible" class="overlay" @click.self="emit('close')">
     <div class="dialog">
       <div class="title">
-        阅读设置
+        {{ t("settings.title") }}
         <button class="close" @click="emit('close')">✕</button>
       </div>
 
       <div class="row">
-        <label>字号</label>
+        <label>{{ t("settings.fontSize") }}</label>
         <input
           type="range"
           :value="settings.fontSize"
@@ -37,7 +40,7 @@ const {
       </div>
 
       <div class="row">
-        <label>行高</label>
+        <label>{{ t("settings.lineHeight") }}</label>
         <input
           type="range"
           :value="settings.lineHeight"
@@ -50,7 +53,7 @@ const {
       </div>
 
       <div class="row">
-        <label>页面宽度</label>
+        <label>{{ t("settings.maxWidth") }}</label>
         <input
           type="range"
           :value="settings.maxWidth"
@@ -63,7 +66,7 @@ const {
       </div>
 
       <div class="row">
-        <label>正文字体</label>
+        <label>{{ t("settings.fontFamily") }}</label>
         <select
           :value="settings.fontFamily"
           @change="(e) => setFontFamily((e.target as HTMLSelectElement).value)"
@@ -79,8 +82,8 @@ const {
       </div>
 
       <div class="footer">
-        <button class="btn" @click="reset">恢复默认</button>
-        <button class="btn primary" @click="emit('close')">完成</button>
+        <button class="btn" @click="reset">{{ t("settings.reset") }}</button>
+        <button class="btn primary" @click="emit('close')">{{ t("settings.done") }}</button>
       </div>
     </div>
   </div>

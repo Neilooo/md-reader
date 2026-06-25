@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import type { Heading } from "../composables/useMarkdown";
+
+const { t } = useI18n();
+
+const { t } = useI18n();
 
 const props = defineProps<{
   headings: Heading[];
@@ -20,8 +25,8 @@ const minLevel = computed(() =>
 
 <template>
   <div class="toc">
-    <div class="toc-title">大纲</div>
-    <div v-if="!headings.length" class="empty">（无标题）</div>
+    <div class="toc-title">{{ t("toc.title") }}</div>
+    <div v-if="!headings.length" class="empty">{{ t("toc.empty") }}</div>
     <ul v-else class="toc-list">
       <li
         v-for="h in headings"
@@ -60,36 +65,22 @@ const minLevel = computed(() =>
 .toc-item {
   padding: 3px 8px;
   cursor: pointer;
-  color: var(--fg);
+  color: var(--toc-item-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   border-left: 2px solid transparent;
+  transition: color 0.12s, background-color 0.12s, box-shadow 0.12s;
 }
 .toc-item:hover {
-  background: var(--bg-btn-hover);
+  color: var(--toc-hover-color);
+  background: var(--toc-hover-bg);
 }
 .toc-item.active {
-  color: var(--link);
-  border-left-color: var(--link);
-  background: var(--bg-active);
-}
-:global(:root[data-theme="dark"]) .toc {
-  color: var(--fg);
-}
-:global(:root[data-theme="dark"]) .toc-item {
-  padding: 4px 8px;
-  color: var(--fg-muted);
-  transition: color 0.12s, background-color 0.12s, border-color 0.12s;
-}
-:global(:root[data-theme="dark"]) .toc-item:hover {
-  color: var(--fg);
-  background: color-mix(in srgb, var(--mdr-accent-teal) 8%, transparent);
-}
-:global(:root[data-theme="dark"]) .toc-item.active {
-  color: var(--fg);
-  border-left-color: var(--mdr-accent-teal);
-  background: color-mix(in srgb, var(--mdr-accent-teal) 14%, transparent);
+  color: var(--toc-active-color);
+  border-left-color: var(--toc-active-line);
+  background: var(--toc-active-bg);
+  box-shadow: var(--toc-active-shadow);
   font-weight: 600;
 }
 .empty {

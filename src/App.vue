@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { useI18n } from "vue-i18n";
+import { persistLocale, type AppLocale } from "./i18n";
 import MarkdownView from "./components/MarkdownView.vue";
 import FileTree from "./components/FileTree.vue";
 import TocPanel from "./components/TocPanel.vue";
@@ -26,6 +28,14 @@ import {
   printDocument,
   type PandocInfo,
 } from "./composables/useExport";
+
+const { t, locale } = useI18n();
+
+function toggleLocale() {
+  const next = locale.value === "zh-CN" ? "en-US" : "zh-CN";
+  locale.value = next;
+  persistLocale(next as AppLocale);
+}
 
 const {
   rootDir,
@@ -63,6 +73,7 @@ const exportBusy = ref(false);
 const exportToast = ref("");
 const pandocInfo = ref<PandocInfo | null>(null);
 const pdfEnginePath = ref<string | null>(null);
+const renderTick = ref(0);
 
 const { width: leftWidth, startResize: resizeLeft } = useResizable(
   "md-reader-left-w",
@@ -82,7 +93,7 @@ const { activeId, onScroll, jumpTo } = useScrollSpy(viewerEl, bodyRef);
 const find = useFindInPage(bodyRef);
 
 const fileName = computed(() => {
-  if (!currentFile.value) return "未打开文件";
+  if (!currentFile.value) return t("app.noFile");
   const parts = currentFile.value.split(/[\\/]/);
   return parts[parts.length - 1];
 });
@@ -103,7 +114,7 @@ async function loadFile(path: string, hash = "") {
     pendingScrollTop = hash ? 0 : getScroll(path);
     find.clearHighlights();
   } catch (e: any) {
-    errorMsg.value = `读取失败: ${e?.message || e}`;
+    errorMsg.value = `${t("errors.readFailed")}: ${e?.message || e}`;
   }
 }
 
@@ -160,6 +171,8 @@ function toggleTheme() {
   theme.value = theme.value === "light" ? "dark" : "light";
   localStorage.setItem("md-reader-theme", theme.value);
   applyTheme();
+  // Force Mermaid/KaTeX re-render so charts follow the new theme.
+  renderTick.value++;
 }
 
 function applyTheme() {
@@ -171,7 +184,7 @@ async function exportHtml() {
   try {
     await exportToHtml(bodyRef.value, fileName.value || "document.html");
   } catch (e: any) {
-    errorMsg.value = `导出失败: ${e?.message ?? e}`;
+    errorMsg.value = `${t("export.exportFailed")}: ${e?.message ?? e}`;
   }
 }
 
@@ -179,17 +192,17 @@ async function exportDocx() {
   if (!bodyRef.value || !content.value) return;
   showExportMenu.value = false;
   exportBusy.value = true;
-  exportToast.value = "正在生成 DOCX…";
+  exportToast.value = t("export.generatingDocx");
   try {
     const out = await exportToDocx(
       bodyRef.value,
       fileName.value || "document",
       fileName.value
     );
-    if (out) exportToast.value = `已导出 DOCX: ${out}`;
+    if (out) exportToast.value = `${t("export.exportedDocx")}: ${out}`;
     else exportToast.value = "";
   } catch (e: any) {
-    errorMsg.value = `导出 DOCX 失败: ${e?.message ?? e}`;
+    errorMsg.value = `${t("export.docxFailed")}: ${e?.message ?? e}`;
     exportToast.value = "";
   } finally {
     exportBusy.value = false;
@@ -200,7 +213,7 @@ async function exportPdf() {
   if (!bodyRef.value || !content.value) return;
   showExportMenu.value = false;
   exportBusy.value = true;
-  exportToast.value = "正在生成 PDF…";
+  exportToast.value = t("export.generatingPdf");
   try {
     const result = await exportToPdf(
       bodyRef.value,
@@ -208,11 +221,11 @@ async function exportPdf() {
       fileName.value,
       async () => {
         const picked = await open({
-          title: "请选择 msedge.exe 路径",
+          title: t("export.chooseEdgePath"),
           multiple: false,
           filters: [
             { name: "Edge / Chrome", extensions: ["exe"] },
-            { name: "所有文件", extensions: ["*"] },
+            { name: t("app.allFiles"), extensions: ["*"] },
           ],
         });
         return typeof picked === "string" ? picked : null;
@@ -221,13 +234,13 @@ async function exportPdf() {
     if (result) {
       pdfEnginePath.value = result.edge_path;
       const sec = (result.elapsed_ms / 1000).toFixed(1);
-      exportToast.value = `已导出 PDF (${sec}s): ${result.out_path}`;
+      exportToast.value = `${t("export.exportedPdf")} (${sec}s): ${result.out_path}`;
     } else {
       exportToast.value = "";
     }
   } catch (e: any) {
     const msg = e?.message || (typeof e === "string" ? e : JSON.stringify(e));
-    errorMsg.value = `导出 PDF 失败: ${msg}`;
+    errorMsg.value = `${t("export.pdfFailed")}: ${msg}`;
     exportToast.value = "";
   } finally {
     exportBusy.value = false;
@@ -358,14 +371,14 @@ watch(exportToast, (v) => {
 <template>
   <div class="app">
     <header class="toolbar">
-      <button class="btn" @click="pickFile" title="打开 .md 文件">文件</button>
-      <button class="btn" @click="pickFolder" title="打开文件夹">文件夹</button>
+      <button class="btn" @click="pickFile" :title="t('app.file') + ' .md'">{{ t("app.file") }}</button>
+      <button class="btn" @click="pickFolder" :title="t('app.folder')">{{ t("app.folder") }}</button>
       <button
         v-if="rootDir"
         class="btn"
         @click="refreshTree"
         :disabled="treeLoading"
-        title="刷新"
+        :title="t('app.refresh')"
       >
         ↻
       </button>
@@ -373,7 +386,7 @@ watch(exportToast, (v) => {
         v-if="rootDir"
         class="btn"
         @click="closeFolder"
-        title="关闭文件夹"
+        :title="t('app.closeFolder')"
       >
         ✕
       </button>
@@ -381,7 +394,7 @@ watch(exportToast, (v) => {
       <button
         class="btn icon"
         @click="find.open()"
-        title="查找 (Ctrl+F)"
+        :title="t('toolbar.find') + ' (Ctrl+F)'"
         :disabled="!content"
       >
         🔍
@@ -391,74 +404,69 @@ watch(exportToast, (v) => {
           class="btn icon"
           @click="showExportMenu = !showExportMenu"
           :disabled="!content || exportBusy"
-          :title="exportBusy ? '导出中…' : '导出 (Ctrl+S 快捷)'"
+          :title="exportBusy ? t('export.exportBusy') : t('export.exportShortcut')"
         >
           {{ exportBusy ? "⏳" : "⤓" }}
         </button>
         <div v-if="showExportMenu" class="export-menu" @click.stop>
           <button class="menu-item" @click="exportHtml(); showExportMenu = false">
-            <span class="mi-label">导出 HTML</span>
-            <span class="mi-hint">自包含 · 含图片/公式/图表</span>
+            <span class="mi-label">{{ t("export.html") }}</span>
+            <span class="mi-hint">{{ t("export.htmlHint") }}</span>
           </button>
           <button
             class="menu-item"
             :disabled="!pandocInfo?.available"
             @click="exportDocx"
-            :title="!pandocInfo?.available ? '未检测到 pandoc' : ''"
+            :title="!pandocInfo?.available ? t('export.docxRequiresPandoc') : ''"
           >
-            <span class="mi-label">导出 DOCX</span>
+            <span class="mi-label">{{ t("export.docx") }}</span>
             <span class="mi-hint">
-              {{ pandocInfo?.available ? "Word 文档" : "需要 pandoc" }}
+              {{ pandocInfo?.available ? t("export.docxHint") : t("export.docxRequiresPandoc") }}
             </span>
           </button>
           <button
             class="menu-item"
             @click="exportPdf"
-            :title="
-              pdfEnginePath
-                ? '使用 ' + pdfEnginePath
-                : '将在导出时让你手动指定 Edge 路径'
-            "
+            :title="pdfEnginePath ? t('app.usePath', { path: pdfEnginePath }) : t('app.specifyEdgePath')"
           >
-            <span class="mi-label">导出 PDF</span>
+            <span class="mi-label">{{ t("export.pdf") }}</span>
             <span class="mi-hint">
-              {{
-                pdfEnginePath
-                  ? "Edge headless · 所见即所得"
-                  : "未检测到 Edge（导出时可指定）"
-              }}
+              {{ pdfEnginePath ? t("export.pdfHint") : t("export.pdfNoEdge") }}
             </span>
           </button>
           <div class="menu-divider"></div>
           <button class="menu-item" @click="doPrint(); showExportMenu = false">
-            <span class="mi-label">打印 / 系统 PDF</span>
-            <span class="mi-hint">浏览器打印对话框</span>
+            <span class="mi-label">{{ t("export.print") }}</span>
+            <span class="mi-hint">{{ t("export.printHint") }}</span>
           </button>
         </div>
       </div>
       <button
         class="btn icon"
         @click="showSettings = true"
-        title="阅读设置 (Ctrl+,)"
+        :title="t('toolbar.settings') + ' (Ctrl+,)'"
       >
         ⚙
       </button>
       <button
         class="btn icon"
         @click="showFileTree = !showFileTree"
-        :title="showFileTree ? '隐藏侧栏' : '显示侧栏'"
+        :title="t('app.toggleSidebar')"
       >
         ☰
       </button>
       <button
         class="btn icon"
         @click="showToc = !showToc"
-        :title="showToc ? '隐藏大纲' : '显示大纲'"
+        :title="t('app.toggleToc')"
       >
         ≡
       </button>
-      <button class="btn icon" @click="toggleTheme" title="切换主题">
+      <button class="btn icon" @click="toggleTheme" :title="t('app.toggleTheme')">
         {{ theme === "light" ? "🌙" : "☀️" }}
+      </button>
+      <button class="btn lang" @click="toggleLocale" :title="t('app.switchLanguage')">
+        {{ locale === "zh-CN" ? "EN" : "中" }}
       </button>
     </header>
 
@@ -474,20 +482,20 @@ watch(exportToast, (v) => {
             :class="{ active: leftMode === 'files' }"
             @click="leftMode = 'files'"
           >
-            文件
+            {{ t("app.files") }}
           </button>
           <button
             class="tab"
             :class="{ active: leftMode === 'search' }"
             @click="leftMode = 'search'"
-            title="全文搜索 (Ctrl+Shift+F)"
+            :title="t('app.search') + ' (Ctrl+Shift+F)'"
           >
-            搜索
+            {{ t("app.search") }}
           </button>
         </div>
         <div v-if="leftMode === 'files'" class="panel-body">
           <div class="panel-header">
-            <span>{{ rootDir ? "文件" : "未打开文件夹" }}</span>
+            <span>{{ rootDir ? t("app.files") : t("app.noFolder") }}</span>
             <span v-if="treeLoading" class="muted">…</span>
           </div>
           <div v-if="treeError" class="panel-error">{{ treeError }}</div>
@@ -499,7 +507,7 @@ watch(exportToast, (v) => {
               @open="loadFile"
             />
             <div v-else class="empty-tip">
-              点击「文件夹」<br />打开目录浏览所有 md 文件
+              {{ t("app.openFolderHint").split("\n")[0] }}<br />{{ t("app.openFolderHint").split("\n")[1] }}
             </div>
           </div>
         </div>
@@ -539,12 +547,12 @@ watch(exportToast, (v) => {
         />
         <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
         <div v-else-if="!content" class="empty">
-          <div class="empty-title">MD Reader</div>
+          <div class="empty-title">{{ t("app.emptyTitle") }}</div>
           <div class="empty-hint">
-            点击「文件」或「文件夹」开始<br />也可将 .md 文件拖入此窗口
+            {{ t("app.emptyHint").split("\n")[0] }}<br />{{ t("app.emptyHint").split("\n")[1] }}
           </div>
           <div class="shortcut-hint">
-            Ctrl+F 查找 · Ctrl+Shift+F 全文搜索 · Ctrl+, 设置
+            {{ t("app.shortcutHint") }}
           </div>
         </div>
         <MarkdownView
@@ -553,6 +561,7 @@ watch(exportToast, (v) => {
           :source="content"
           :current-file="currentFile"
           :root-dir="rootDir"
+          :render-tick="renderTick"
           @rendered="onRendered"
           @internal-link="onInternalLink"
         />
@@ -601,14 +610,14 @@ watch(exportToast, (v) => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--shell-toolbar-border);
+  background: var(--shell-toolbar-bg);
   user-select: none;
 }
 .filename {
   flex: 1 1 auto;
   font-size: 13px;
-  color: var(--fg-muted);
+  color: var(--shell-filename-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -643,16 +652,17 @@ watch(exportToast, (v) => {
 .left,
 .right {
   flex: 0 0 auto;
-  background: var(--bg-toolbar);
-  border-right: 1px solid var(--border);
+  background: var(--shell-sidebar-bg);
+  border-right: 1px solid var(--shell-sidebar-border);
   display: flex;
   flex-direction: column;
   min-width: 160px;
   overflow: hidden;
 }
 .right {
+  background: var(--shell-right-bg);
   border-right: none;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--shell-sidebar-border);
 }
 .panel-header {
   display: flex;
@@ -662,8 +672,8 @@ watch(exportToast, (v) => {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: var(--fg-muted);
-  border-bottom: 1px solid var(--border);
+  color: var(--shell-panel-header-color);
+  border-bottom: 1px solid var(--shell-panel-header-border);
 }
 .panel-error {
   padding: 8px 12px;
@@ -725,25 +735,25 @@ watch(exportToast, (v) => {
 }
 .panel-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--shell-sidebar-border);
+  background: var(--shell-sidebar-bg);
 }
 .tab {
   flex: 1;
   padding: 6px 0;
   font-size: 12px;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--shell-tab-color);
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
 }
 .tab:hover {
-  color: var(--fg);
+  color: var(--shell-tab-hover-color);
 }
 .tab.active {
-  color: var(--link);
-  border-bottom-color: var(--link);
+  color: var(--shell-tab-active-color);
+  border-bottom-color: var(--shell-tab-active-border);
 }
 .panel-body {
   flex: 1 1 auto;
@@ -760,7 +770,7 @@ watch(exportToast, (v) => {
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: var(--bg);
+  background: var(--shell-export-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
@@ -783,7 +793,7 @@ watch(exportToast, (v) => {
   text-align: left;
 }
 .menu-item:hover:not(:disabled) {
-  background: var(--bg-btn-hover);
+  background: var(--shell-export-hover-bg);
 }
 .menu-item:disabled {
   opacity: 0.45;
@@ -824,82 +834,6 @@ watch(exportToast, (v) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-:global(:root[data-theme="dark"]) .toolbar {
-  flex-basis: 42px;
-  border-bottom-color: var(--mdr-panel-line);
-  background: linear-gradient(180deg, var(--mdr-panel-soft), var(--mdr-panel));
-}
-:global(:root[data-theme="dark"]) .filename {
-  color: var(--mdr-panel-muted);
-}
-:global(:root[data-theme="dark"]) .btn {
-  border-color: var(--mdr-panel-line);
-  background: var(--mdr-panel-soft);
-  color: #e7edf6;
-  min-height: 28px;
-}
-:global(:root[data-theme="dark"]) .btn:hover {
-  background: var(--mdr-panel-raised);
-  border-color: color-mix(in srgb, var(--mdr-accent-gold) 60%, var(--mdr-panel-line));
-}
-:global(:root[data-theme="dark"]) .export-wrap .btn {
-  border-color: color-mix(in srgb, var(--mdr-accent-gold) 70%, var(--mdr-panel-line));
-  background: color-mix(in srgb, var(--mdr-accent-gold) 18%, var(--mdr-panel-soft));
-}
-:global(:root[data-theme="dark"]) .left,
-:global(:root[data-theme="dark"]) .right {
-  background: var(--mdr-panel);
-  border-right-color: var(--mdr-panel-line);
-}
-:global(:root[data-theme="dark"]) .right {
-  background: var(--mdr-paper-soft);
-  border-left-color: var(--border);
-}
-:global(:root[data-theme="dark"]) .panel-header {
-  color: var(--mdr-panel-muted);
-  border-bottom-color: var(--mdr-panel-line);
-}
-:global(:root[data-theme="dark"]) .right .panel-header {
-  color: var(--fg-muted);
-  border-bottom-color: var(--border);
-}
-:global(:root[data-theme="dark"]) .viewer {
-  background: var(--mdr-paper-soft);
-}
-:global(:root[data-theme="dark"]) .panel-tabs {
-  border-bottom-color: var(--mdr-panel-line);
-  background: var(--mdr-panel);
-}
-:global(:root[data-theme="dark"]) .tab {
-  padding: 7px 0 6px;
-  color: var(--mdr-panel-muted);
-}
-:global(:root[data-theme="dark"]) .tab:hover {
-  color: #e7edf6;
-  background: var(--mdr-panel-soft);
-}
-:global(:root[data-theme="dark"]) .tab.active {
-  color: var(--mdr-accent-gold);
-  border-bottom-color: var(--mdr-accent-gold);
-  background: color-mix(in srgb, var(--mdr-accent-gold) 10%, transparent);
-}
-:global(:root[data-theme="dark"]) .export-menu {
-  min-width: 320px;
-  padding: 6px;
-  margin-top: 6px;
-  background: var(--mdr-paper);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
-}
-:global(:root[data-theme="dark"]) .menu-item {
-  gap: 3px;
-  padding: 9px 12px;
-}
-:global(:root[data-theme="dark"]) .menu-item:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--mdr-accent-gold) 12%, transparent);
-}
-:global(:root[data-theme="dark"]) .mi-label {
-  font-weight: 600;
 }
 .error {
   margin: 24px;

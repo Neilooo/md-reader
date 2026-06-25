@@ -128,19 +128,19 @@ async function loadMermaid() {
   if (!mermaidLoading) {
     mermaidLoading = (async () => {
       const mod = await import("mermaid");
-      const mermaid: any = (mod as any).default ?? mod;
-      mermaid.initialize({
-        startOnLoad: false,
-        theme:
-          document.documentElement.dataset.theme === "dark"
-            ? "dark"
-            : "default",
-        securityLevel: "strict",
-      });
-      return mermaid;
+      return (mod as any).default ?? mod;
     })();
   }
   return mermaidLoading;
+}
+
+function configureMermaid(mermaid: any): void {
+  const isDark = document.documentElement.dataset.theme === "dark";
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark ? "dark" : "default",
+    securityLevel: "strict",
+  });
 }
 
 export async function renderMath(container: HTMLElement): Promise<void> {
@@ -167,14 +167,27 @@ export async function renderMath(container: HTMLElement): Promise<void> {
 }
 
 let mermaidIdCounter = 0;
-export async function renderMermaid(container: HTMLElement): Promise<void> {
-  const blocks = container.querySelectorAll<HTMLElement>(
-    ".mermaid-block:not(.mermaid-rendered)"
+export async function renderMermaid(
+  container: HTMLElement,
+  force = false
+): Promise<void> {
+  let blocks = Array.from(
+    container.querySelectorAll<HTMLElement>(".mermaid-block")
   );
+  if (!force) {
+    blocks = blocks.filter((el) => !el.classList.contains("mermaid-rendered"));
+  }
   if (blocks.length === 0) return;
   const mermaid = await loadMermaid();
-  for (const el of Array.from(blocks)) {
-    const code = el.textContent ?? "";
+  configureMermaid(mermaid);
+  for (const el of blocks) {
+    let code: string;
+    if (el.dataset.mermaidSrc != null) {
+      code = el.dataset.mermaidSrc;
+    } else {
+      code = el.textContent ?? "";
+      el.dataset.mermaidSrc = code;
+    }
     const id = `mermaid-${Date.now()}-${mermaidIdCounter++}`;
     try {
       const { svg } = await mermaid.render(id, code);
@@ -184,6 +197,7 @@ export async function renderMermaid(container: HTMLElement): Promise<void> {
       el.innerHTML = `<pre class="mermaid-error">Mermaid: ${String(
         e?.message ?? e
       )}</pre>`;
+      el.classList.add("mermaid-rendered");
     }
   }
 }

@@ -32,6 +32,38 @@
   --scrollbar-track: #f6f8fa;
   --scrollbar-thumb: #c9d1d9;
   --scrollbar-thumb-hover: #8c959f;
+
+  --shell-toolbar-bg: var(--bg-toolbar);
+  --shell-toolbar-border: var(--border);
+  --shell-sidebar-bg: var(--bg-toolbar);
+  --shell-right-bg: var(--bg-toolbar);
+  --shell-sidebar-border: var(--border);
+  --shell-filename-color: var(--fg-muted);
+  --shell-panel-header-color: var(--fg-muted);
+  --shell-panel-header-border: var(--border);
+  --shell-tab-color: var(--fg-muted);
+  --shell-tab-hover-color: var(--fg);
+  --shell-tab-active-color: var(--link);
+  --shell-tab-active-border: var(--link);
+  --shell-export-bg: var(--bg);
+  --shell-export-hover-bg: var(--bg-btn-hover);
+
+  --tree-row-color: var(--fg);
+  --tree-row-hover-bg: var(--bg-btn-hover);
+  --tree-row-active-bg: var(--bg-active);
+  --tree-row-active-color: var(--link);
+  --tree-row-active-shadow: none;
+  --tree-dir-color: var(--fg);
+  --tree-file-color: var(--fg);
+  --tree-caret-color: var(--fg-muted);
+
+  --toc-item-color: var(--fg);
+  --toc-hover-color: var(--fg);
+  --toc-hover-bg: var(--bg-btn-hover);
+  --toc-active-color: var(--link);
+  --toc-active-bg: var(--bg-active);
+  --toc-active-line: var(--link);
+  --toc-active-shadow: none;
   color-scheme: light;
 }
 
@@ -69,6 +101,38 @@
   --scrollbar-track: #0d1117;
   --scrollbar-thumb: #303a46;
   --scrollbar-thumb-hover: #4fa29b;
+
+  --shell-toolbar-bg: linear-gradient(180deg, var(--mdr-panel-soft), var(--mdr-panel));
+  --shell-toolbar-border: var(--mdr-panel-line);
+  --shell-sidebar-bg: var(--mdr-panel);
+  --shell-right-bg: var(--mdr-paper-soft);
+  --shell-sidebar-border: var(--mdr-panel-line);
+  --shell-filename-color: var(--mdr-panel-muted);
+  --shell-panel-header-color: var(--mdr-panel-muted);
+  --shell-panel-header-border: var(--mdr-panel-line);
+  --shell-tab-color: var(--mdr-panel-muted);
+  --shell-tab-hover-color: #e7edf6;
+  --shell-tab-active-color: var(--mdr-accent-gold);
+  --shell-tab-active-border: var(--mdr-accent-gold);
+  --shell-export-bg: var(--mdr-paper);
+  --shell-export-hover-bg: color-mix(in srgb, var(--mdr-accent-gold) 12%, transparent);
+
+  --tree-row-color: #d8dee9;
+  --tree-row-hover-bg: var(--mdr-panel-soft);
+  --tree-row-active-bg: color-mix(in srgb, var(--mdr-accent-gold) 18%, transparent);
+  --tree-row-active-color: #fff7e8;
+  --tree-row-active-shadow: inset 2px 0 0 var(--mdr-accent-gold);
+  --tree-dir-color: #f1f5f9;
+  --tree-file-color: #d8dee9;
+  --tree-caret-color: var(--mdr-panel-muted);
+
+  --toc-item-color: var(--fg-muted);
+  --toc-hover-color: #b8e6d6;
+  --toc-hover-bg: #0a2725;
+  --toc-active-color: #7fffd4;
+  --toc-active-bg: #0d3d38;
+  --toc-active-line: #4fd1c5;
+  --toc-active-shadow: inset 2px 0 0 var(--toc-active-line);
   color-scheme: dark;
 }
 

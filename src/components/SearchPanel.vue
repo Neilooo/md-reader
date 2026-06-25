@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import { searchInFiles, type SearchMatch } from "../composables/useGlobalSearch";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   visible: boolean;
@@ -30,7 +33,7 @@ const grouped = computed(() => {
 async function run() {
   error.value = "";
   if (!props.rootDir) {
-    error.value = "请先打开一个文件夹";
+    error.value = t("search.openFolderFirst");
     results.value = [];
     return;
   }
@@ -100,7 +103,7 @@ watch(
         ref="inputRef"
         v-model="query"
         type="text"
-        placeholder="全文搜索（当前文件夹）"
+        :placeholder="t('search.placeholder')"
         class="input"
         @input="onInput"
         @keydown="onKey"
@@ -109,20 +112,20 @@ watch(
         class="ic"
         :class="{ active: caseSensitive }"
         @click="(caseSensitive = !caseSensitive), run()"
-        title="区分大小写"
+        :title="t('find.caseSensitive')"
       >
         Aa
       </button>
-      <button class="ic" @click="emit('close')" title="关闭 (Esc)">✕</button>
+      <button class="ic" @click="emit('close')" :title="t('find.close') + ' (Esc)'">✕</button>
     </div>
     <div class="status">
-      <span v-if="loading">搜索中…</span>
+      <span v-if="loading">{{ t("search.searching") }}</span>
       <span v-else-if="error" class="error">{{ error }}</span>
-      <span v-else-if="query.trim() && results.length === 0">无匹配</span>
+      <span v-else-if="query.trim() && results.length === 0">{{ t("search.noMatches") }}</span>
       <span v-else-if="results.length > 0">
-        {{ results.length }} 处匹配 · {{ grouped.length }} 个文件
+        {{ results.length }} {{ t("search.matches") }} · {{ grouped.length }} {{ t("search.files") }}
       </span>
-      <span v-else class="muted">输入关键字开始搜索</span>
+      <span v-else class="muted">{{ t("search.typeToSearch") }}</span>
     </div>
     <div class="results">
       <div v-for="g in grouped" :key="g.rel" class="group">

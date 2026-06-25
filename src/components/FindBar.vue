@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   visible: boolean;
@@ -63,7 +66,7 @@ onMounted(() => {
       ref="inputRef"
       type="text"
       class="find-input"
-      placeholder="在当前文档查找"
+      :placeholder="t('find.placeholder')"
       :value="query"
       @input="onInput"
       @keydown="onKey"
@@ -75,13 +78,13 @@ onMounted(() => {
       class="ic"
       :class="{ active: caseSensitive }"
       @click="toggleCase"
-      title="区分大小写"
+      :title="t('find.caseSensitive')"
     >
       Aa
     </button>
-    <button class="ic" @click="emit('prev')" title="上一个 (Shift+Enter)">↑</button>
-    <button class="ic" @click="emit('next')" title="下一个 (Enter)">↓</button>
-    <button class="ic" @click="emit('close')" title="关闭 (Esc)">✕</button>
+    <button class="ic" @click="emit('prev')" :title="t('find.previous') + ' (Shift+Enter)'">↑</button>
+    <button class="ic" @click="emit('next')" :title="t('find.next') + ' (Enter)'">↓</button>
+    <button class="ic" @click="emit('close')" :title="t('find.close') + ' (Esc)'">✕</button>
   </div>
 </template>
 

@@ -11,6 +11,7 @@ const props = defineProps<{
   source: string;
   currentFile: string;
   rootDir: string;
+  renderTick?: number;
 }>();
 const emit = defineEmits<{
   (e: "rendered", el: HTMLElement): void;
@@ -20,7 +21,7 @@ const emit = defineEmits<{
 const html = ref<string>("");
 const root = ref<HTMLElement | null>(null);
 
-async function update() {
+async function update(forceMermaid = false) {
   html.value = renderMarkdown(props.source);
   await nextTick();
   if (root.value) {
@@ -30,14 +31,18 @@ async function update() {
       (path, hash) => emit("internal-link", path, hash)
     );
     await renderMath(root.value);
-    await renderMermaid(root.value);
+    await renderMermaid(root.value, forceMermaid);
     emit("rendered", root.value);
   }
 }
 
-onMounted(update);
-watch(() => props.source, update);
-watch(() => props.currentFile, update);
+onMounted(() => update());
+watch(() => props.source, () => update());
+watch(() => props.currentFile, () => update());
+watch(
+  () => props.renderTick,
+  () => update(true)
+);
 
 defineExpose({ root });
 </script>
@@ -58,13 +63,9 @@ defineExpose({ root });
 }
 
 :root[data-theme="dark"] .markdown-body {
-  padding: 38px 54px 88px;
-  max-width: var(--reader-max-width, 820px);
-  margin: 30px auto 70px;
-  line-height: var(--reader-line-height, 1.72);
-  background: var(--mdr-paper);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 </style>
