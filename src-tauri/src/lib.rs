@@ -10,7 +10,7 @@ use serde::Serialize;
 mod pdf_utils;
 mod pdf_export;
 
-use pdf_utils::current_millis;
+use pdf_utils::{current_millis, strip_windows_extended_prefix};
 
 fn extract_md_path_from_args(argv: &[String]) -> Option<String> {
     for arg in argv.iter().skip(1) {
@@ -28,11 +28,9 @@ fn extract_md_path_from_args(argv: &[String]) -> Option<String> {
                 Some("md") | Some("markdown") | Some("mdx") | Some("txt")
             ) {
                 if let Ok(abs) = std::fs::canonicalize(p) {
-                    let mut s = abs.to_string_lossy().to_string();
-                    if s.starts_with("\\\\?\\") {
-                        s = s[4..].to_string();
-                    }
-                    return Some(s);
+                    return Some(strip_windows_extended_prefix(
+                        abs.to_string_lossy().to_string(),
+                    ));
                 }
                 return Some(arg.clone());
             }
