@@ -42,7 +42,6 @@ const minLevel = computed(() =>
 .toc {
   padding: 8px 0;
   font-size: 13px;
-  color: var(--fg);
 }
 .toc-title {
   font-size: 12px;
@@ -59,20 +58,35 @@ const minLevel = computed(() =>
   padding: 0;
 }
 .toc-item {
-  padding: 4px 8px;
+  padding: 3px 8px;
   cursor: pointer;
-  color: var(--fg-muted);
+  color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   border-left: 2px solid transparent;
-  transition: color 0.12s, background-color 0.12s, border-color 0.12s;
 }
 .toc-item:hover {
+  background: var(--bg-btn-hover);
+}
+.toc-item.active {
+  color: var(--link);
+  border-left-color: var(--link);
+  background: var(--bg-active);
+}
+:global(:root[data-theme="dark"]) .toc {
+  color: var(--fg);
+}
+:global(:root[data-theme="dark"]) .toc-item {
+  padding: 4px 8px;
+  color: var(--fg-muted);
+  transition: color 0.12s, background-color 0.12s, border-color 0.12s;
+}
+:global(:root[data-theme="dark"]) .toc-item:hover {
   color: var(--fg);
   background: color-mix(in srgb, var(--mdr-accent-teal) 8%, transparent);
 }
-.toc-item.active {
+:global(:root[data-theme="dark"]) .toc-item.active {
   color: var(--fg);
   border-left-color: var(--mdr-accent-teal);
   background: color-mix(in srgb, var(--mdr-accent-teal) 14%, transparent);

@@ -69,38 +69,60 @@ function toggle(key: string) {
 .row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 3px 8px 3px 8px;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #d8dee9;
+  color: var(--fg);
   user-select: none;
-  border-left: 2px solid transparent;
 }
 .row:hover {
-  background: var(--mdr-panel-soft);
+  background: var(--bg-btn-hover);
 }
 .row.active {
-  background: color-mix(in srgb, var(--mdr-accent-gold) 18%, transparent);
-  color: #fff7e8;
-  border-left-color: var(--mdr-accent-gold);
+  background: var(--bg-active);
+  color: var(--link);
 }
 .caret {
   font-size: 10px;
-  color: var(--mdr-panel-muted);
+  color: var(--fg-muted);
   width: 12px;
   display: inline-block;
 }
 .dir .name {
+  font-weight: 500;
+  color: var(--fg);
+}
+.file .name {
+  color: var(--fg);
+}
+:global(:root[data-theme="dark"]) .row {
+  gap: 5px;
+  padding: 4px 8px;
+  color: #d8dee9;
+  border-left: 2px solid transparent;
+}
+:global(:root[data-theme="dark"]) .row:hover {
+  background: var(--mdr-panel-soft);
+}
+:global(:root[data-theme="dark"]) .row.active {
+  background: color-mix(in srgb, var(--mdr-accent-gold) 18%, transparent);
+  color: #fff7e8;
+  border-left-color: var(--mdr-accent-gold);
+}
+:global(:root[data-theme="dark"]) .caret {
+  color: var(--mdr-panel-muted);
+}
+:global(:root[data-theme="dark"]) .dir .name {
   font-weight: 600;
   color: #f1f5f9;
 }
-.file .name {
+:global(:root[data-theme="dark"]) .file .name {
   color: #d8dee9;
 }
-.row.active .name {
+:global(:root[data-theme="dark"]) .row.active .name {
   color: #fff7e8;
 }
 .name {
