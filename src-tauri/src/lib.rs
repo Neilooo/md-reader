@@ -12,6 +12,14 @@ mod pdf_export;
 
 use pdf_utils::{current_millis, strip_windows_extended_prefix};
 
+#[cfg(target_os = "windows")]
+fn apply_windows_frame_theme(window: &tauri::WebviewWindow, is_dark: bool) {
+    let _ = window_vibrancy::apply_mica(window, Some(is_dark));
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_windows_frame_theme(_window: &tauri::WebviewWindow, _is_dark: bool) {}
+
 fn extract_md_path_from_args(argv: &[String]) -> Option<String> {
     for arg in argv.iter().skip(1) {
         if arg.starts_with("--") {
@@ -251,6 +259,20 @@ fn search_in_files(
     Ok(results)
 }
 
+
+#[tauri::command]
+fn set_app_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
+    let is_dark = theme == "dark";
+    window
+        .set_theme(Some(if is_dark {
+            tauri::Theme::Dark
+        } else {
+            tauri::Theme::Light
+        }))
+        .map_err(|e| e.to_string())?;
+    apply_windows_frame_theme(&window, is_dark);
+    Ok(())
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -270,6 +292,10 @@ pub fn run() {
         .setup(|app| {
             use tauri::{Emitter, Manager};
             app.manage(WatcherState::default());
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_theme(None);
+                apply_windows_frame_theme(&window, false);
+            }
             // Pass the initial argv path (if any) to the frontend after it's ready.
             let argv: Vec<String> = std::env::args().collect();
             if let Some(path) = extract_md_path_from_args(&argv) {
@@ -288,6 +314,7 @@ pub fn run() {
             start_watch,
             stop_watch,
             search_in_files,
+            set_app_theme,
             check_pandoc,
             export_with_pandoc,
             pdf_utils::check_pdf_engine,

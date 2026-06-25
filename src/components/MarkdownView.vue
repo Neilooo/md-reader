@@ -21,7 +21,7 @@ const emit = defineEmits<{
 const html = ref<string>("");
 const root = ref<HTMLElement | null>(null);
 
-async function update(forceMermaid = false) {
+async function update() {
   html.value = renderMarkdown(props.source);
   await nextTick();
   if (root.value) {
@@ -31,17 +31,25 @@ async function update(forceMermaid = false) {
       (path, hash) => emit("internal-link", path, hash)
     );
     await renderMath(root.value);
-    await renderMermaid(root.value, forceMermaid);
+    await renderMermaid(root.value);
     emit("rendered", root.value);
   }
 }
 
+async function refreshThemeRender() {
+  if (!root.value) return;
+  await renderMermaid(root.value, true);
+  emit("rendered", root.value);
+}
+
 onMounted(() => update());
-watch(() => props.source, () => update());
-watch(() => props.currentFile, () => update());
+watch(
+  () => [props.source, props.currentFile, props.rootDir],
+  () => update()
+);
 watch(
   () => props.renderTick,
-  () => update(true)
+  () => refreshThemeRender()
 );
 
 defineExpose({ root });

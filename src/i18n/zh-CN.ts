@@ -1,4 +1,4 @@
-export default {
+const zhCN = {
   app: {
     file: "文件",
     folder: "文件夹",
@@ -86,3 +86,6 @@ export default {
     readFailed: "读取失败",
   },
 };
+
+export type MessageSchema = typeof zhCN;
+export default zhCN;

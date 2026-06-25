@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "md-reader"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "notify",
  "notify-debouncer-mini",
@@ -1994,6 +1994,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-single-instance",
  "walkdir",
+ "window-vibrancy",
 ]
 
 [[package]]

@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import { persistLocale, type AppLocale } from "./i18n";
 import MarkdownView from "./components/MarkdownView.vue";
@@ -178,11 +178,9 @@ function toggleTheme() {
 
 function applyTheme() {
   document.documentElement.dataset.theme = theme.value;
-  try {
-    getCurrentWindow().setTheme(theme.value === "dark" ? "dark" : "light");
-  } catch {
+  void invoke("set_app_theme", { theme: theme.value }).catch(() => {
     /* ignore in non-Tauri environments */
-  }
+  });
 }
 
 async function exportHtml() {
@@ -512,9 +510,7 @@ watch(exportToast, (v) => {
               :current-path="currentFile"
               @open="loadFile"
             />
-            <div v-else class="empty-tip">
-              {{ t("app.openFolderHint").split("\n")[0] }}<br />{{ t("app.openFolderHint").split("\n")[1] }}
-            </div>
+            <div v-else class="empty-tip">{{ t("app.openFolderHint") }}</div>
           </div>
         </div>
         <div v-else class="panel-body">
@@ -554,9 +550,7 @@ watch(exportToast, (v) => {
         <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
         <div v-else-if="!content" class="empty">
           <div class="empty-title">{{ t("app.emptyTitle") }}</div>
-          <div class="empty-hint">
-            {{ t("app.emptyHint").split("\n")[0] }}<br />{{ t("app.emptyHint").split("\n")[1] }}
-          </div>
+          <div class="empty-hint">{{ t("app.emptyHint") }}</div>
           <div class="shortcut-hint">
             {{ t("app.shortcutHint") }}
           </div>
@@ -696,6 +690,7 @@ watch(exportToast, (v) => {
   font-size: 12px;
   color: var(--fg-muted);
   line-height: 1.7;
+  white-space: pre-line;
 }
 .muted {
   color: var(--fg-muted);
@@ -732,7 +727,9 @@ watch(exportToast, (v) => {
 }
 .empty-hint {
   font-size: 14px;
+  line-height: 1.7;
   text-align: center;
+  white-space: pre-line;
 }
 .shortcut-hint {
   font-size: 12px;

@@ -1,4 +1,6 @@
-export default {
+import type { MessageSchema } from "./zh-CN";
+
+const enUS = {
   app: {
     file: "File",
     folder: "Folder",
@@ -85,4 +87,6 @@ export default {
   errors: {
     readFailed: "Failed to read file",
   },
-};
+} satisfies MessageSchema;
+
+export default enUS;
