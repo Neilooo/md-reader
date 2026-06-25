@@ -48,20 +48,23 @@ defineExpose({ root });
 
 <style scoped>
 .markdown-body {
+  padding: 32px 48px 80px;
+  max-width: var(--reader-max-width, 900px);
+  margin: 0 auto;
+  line-height: var(--reader-line-height, 1.75);
+  font-size: var(--reader-font-size, 16px);
+  font-family: var(--reader-font-family, inherit);
+  color: var(--fg);
+}
+
+:root[data-theme="dark"] .markdown-body {
   padding: 38px 54px 88px;
   max-width: var(--reader-max-width, 820px);
   margin: 30px auto 70px;
   line-height: var(--reader-line-height, 1.72);
-  font-size: var(--reader-font-size, 16px);
-  font-family: var(--reader-font-family, inherit);
-  color: var(--fg);
   background: var(--mdr-paper);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 10px 34px rgba(30, 24, 12, 0.08);
-}
-
-:root[data-theme="dark"] .markdown-body {
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
 }
 </style>
