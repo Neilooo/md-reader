@@ -45,6 +45,20 @@ fn format_output_diagnostics(output: &Output) -> String {
     )
 }
 
+fn wait_for_valid_pdf(path: &Path, timeout_ms: u64) -> std::io::Result<u64> {
+    let start = std::time::Instant::now();
+    loop {
+        match std::fs::metadata(path) {
+            Ok(meta) if meta.len() > 1024 => return Ok(meta.len()),
+            Ok(_) | Err(_) if start.elapsed().as_millis() < timeout_ms as u128 => {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Ok(meta) => return Ok(meta.len()),
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 fn run_edge_print(
     edge: &Path,
     file_url: &str,
@@ -142,8 +156,8 @@ pub fn export_pdf_via_edge(
         );
 
         if output.status.success() {
-            match std::fs::metadata(&temp_pdf) {
-                Ok(meta) if meta.len() > 1024 => {
+            match wait_for_valid_pdf(&temp_pdf, 10_000) {
+                Ok(size) if size > 1024 => {
                     std::fs::copy(&temp_pdf, &final_out).map_err(|e| {
                         let _ = std::fs::remove_file(&temp_pdf);
                         let _ = std::fs::remove_dir_all(&user_data_dir);
@@ -159,14 +173,16 @@ pub fn export_pdf_via_edge(
                         edge_path: edge.to_string_lossy().to_string(),
                     });
                 }
-                Ok(meta) => {
+                Ok(size) => {
                     diagnostics.push(format!(
-                        "{}\nPDF 文件过小: {} bytes",
-                        detail,
-                        meta.len()
+                        "{}\n等待 PDF 落盘后文件仍过小: {} bytes",
+                        detail, size
                     ));
                 }
-                Err(_) => diagnostics.push(format!("{}\nPDF 文件未生成", detail)),
+                Err(_) => diagnostics.push(format!(
+                    "{}\n等待 10 秒后 PDF 文件仍未生成",
+                    detail
+                )),
             }
         } else {
             diagnostics.push(detail);
