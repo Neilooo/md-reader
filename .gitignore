@@ -43,6 +43,9 @@ yarn-error.log*
 # Local agent instructions
 AGENTS.md
 
+# Kilo local tooling
+.kilo/
+
 # Local docs / drafts
 docs/
 

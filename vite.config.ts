@@ -27,6 +27,8 @@ export default defineConfig(async () => ({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
+            if (id.includes("@codemirror") || id.includes("codemirror"))
+              return "vendor-codemirror";
             if (id.includes("highlight.js")) return "vendor-hljs";
             if (id.includes("markdown-it") || id.includes("dompurify"))
               return "vendor-markdown";

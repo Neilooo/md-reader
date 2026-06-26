@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
@@ -12,14 +12,18 @@ import TocPanel from "./components/TocPanel.vue";
 import FindBar from "./components/FindBar.vue";
 import SearchPanel from "./components/SearchPanel.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
+import MarkdownEditor from "./components/MarkdownEditor.vue";
+import UnsavedChangesDialog from "./components/UnsavedChangesDialog.vue";
+import TabBar from "./components/TabBar.vue";
 import { useFileTree } from "./composables/useFileTree";
 import { useFileWatcher } from "./composables/useFileWatcher";
-import { extractHeadings, type Heading } from "./composables/useMarkdown";
+import { extractHeadings } from "./composables/useMarkdown";
 import { useResizable } from "./composables/useResizable";
 import { useScrollSpy } from "./composables/useScrollSpy";
 import { useFindInPage } from "./composables/useFindInPage";
 import { useHistory } from "./composables/useHistory";
 import { useReadingSettings } from "./composables/useReadingSettings";
+import { useTabs, samePath, type Tab } from "./composables/useTabs";
 import {
   exportToHtml,
   exportToDocx,
@@ -52,11 +56,47 @@ const {
 const watcher = useFileWatcher();
 const { pushRecent, saveScroll, getScroll } = useHistory();
 const { apply: applyReadingSettings } = useReadingSettings();
+const {
+  tabs,
+  activeTabId,
+  activeTab,
+  findTabByPath,
+  createTab,
+  activateTab,
+  removeTab,
+  persist,
+  loadPersisted,
+} = useTabs();
 
-const content = ref<string>("");
-const currentFile = ref<string>("");
 const errorMsg = ref<string>("");
-const headings = ref<Heading[]>([]);
+const saving = ref(false);
+const editorRef = ref<{
+  focus: () => void;
+  openSearch: () => void;
+  openReplace: () => void;
+  goToLine: () => void;
+} | null>(null);
+
+type UnsavedChoice = "save" | "discard" | "cancel";
+type UnsavedDialogMode = "unsaved" | "external";
+const showUnsavedDialog = ref(false);
+const unsavedDialogMode = ref<UnsavedDialogMode>("unsaved");
+const dialogTab = ref<Tab | null>(null);
+let unsavedResolve: ((choice: UnsavedChoice) => void) | null = null;
+
+const suppressed = new Set<string>();
+function addSuppress(p: string) {
+  suppressed.add(p.replace(/\\/g, "/").toLowerCase());
+}
+function isSuppressed(p: string): boolean {
+  return suppressed.has(p.replace(/\\/g, "/").toLowerCase());
+}
+function clearSuppress(p: string) {
+  suppressed.delete(p.replace(/\\/g, "/").toLowerCase());
+}
+function scheduleSuppressClear(p: string) {
+  window.setTimeout(() => clearSuppress(p), 1000);
+}
 
 const theme = ref<"light" | "dark">(
   (localStorage.getItem("md-reader-theme") as "light" | "dark") || "light"
@@ -93,40 +133,255 @@ const bodyRef = computed(() => markdownRef.value?.root ?? null);
 const { activeId, onScroll, jumpTo } = useScrollSpy(viewerEl, bodyRef);
 const find = useFindInPage(bodyRef);
 
+const currentFile = computed(() => activeTab.value?.path ?? "");
+const draftContent = computed(() => activeTab.value?.draftContent ?? "");
+const isDirty = computed(() => activeTab.value?.isDirty ?? false);
+const isEditing = computed(() => activeTab.value?.isEditing ?? false);
+const headings = computed(() => activeTab.value?.headings ?? []);
+
+function basename(p: string): string {
+  const parts = p.split(/[\\/]/);
+  return parts[parts.length - 1];
+}
+
 const fileName = computed(() => {
   if (!currentFile.value) return t("app.noFile");
-  const parts = currentFile.value.split(/[\\/]/);
-  return parts[parts.length - 1];
+  return basename(currentFile.value);
 });
+const displayFileName = computed(() =>
+  isDirty.value ? `${fileName.value} *` : fileName.value
+);
+const canExport = computed(() => Boolean(activeTab.value?.draftContent));
+const dialogFileName = computed(() =>
+  dialogTab.value ? basename(dialogTab.value.path) : ""
+);
+const unsavedDialogTitle = computed(() =>
+  unsavedDialogMode.value === "external"
+    ? t("editor.externalChangedTitle")
+    : t("editor.unsavedTitle")
+);
+const unsavedDialogMessage = computed(() =>
+  unsavedDialogMode.value === "external"
+    ? t("editor.externalChangedMessage")
+    : t("editor.unsavedMessage")
+);
 
-let pendingScrollTop = 0;
-let pendingHash = "";
+let headingTimer: number | null = null;
+let appWindow: import("@tauri-apps/api/window").Window | null = null;
+
+function askUnsaved(
+  tab: Tab,
+  mode: UnsavedDialogMode
+): Promise<UnsavedChoice> {
+  if (unsavedResolve) {
+    // A dialog is already in flight; don't clobber its resolver.
+    return Promise.resolve("cancel");
+  }
+  return new Promise((resolve) => {
+    dialogTab.value = tab;
+    unsavedDialogMode.value = mode;
+    unsavedResolve = resolve;
+    showUnsavedDialog.value = true;
+  });
+}
+
+function resolveDialog(choice: UnsavedChoice) {
+  showUnsavedDialog.value = false;
+  const resolve = unsavedResolve;
+  unsavedResolve = null;
+  dialogTab.value = null;
+  resolve?.(choice);
+}
+
+async function readFileIntoTab(tab: Tab, path: string, hash = "") {
+  const text = await readTextFile(path);
+  tab.path = path;
+  tab.content = text;
+  tab.draftContent = text;
+  tab.isDirty = false;
+  tab.isEditing = false;
+  tab.headings = extractHeadings(text);
+  tab.pendingHash = hash;
+  tab.pendingScrollTop = hash ? 0 : getScroll(path);
+  tab.scrollTop = tab.pendingScrollTop;
+  pushRecent(path);
+  errorMsg.value = "";
+}
 
 async function loadFile(path: string, hash = "") {
-  try {
+  const existing = findTabByPath(path);
+  if (existing) {
     saveCurrentScroll();
-    const text = await readTextFile(path);
-    content.value = text;
-    currentFile.value = path;
-    errorMsg.value = "";
-    headings.value = extractHeadings(text);
-    pushRecent(path);
-    pendingHash = hash;
-    pendingScrollTop = hash ? 0 : getScroll(path);
-    find.clearHighlights();
+    if (hash) {
+      existing.pendingHash = hash;
+      existing.pendingScrollTop = 0;
+    } else {
+      existing.pendingHash = "";
+      existing.pendingScrollTop = existing.scrollTop;
+    }
+    activateTab(existing.id);
+    return;
+  }
+  saveCurrentScroll();
+  const tab = createTab(path);
+  try {
+    await readFileIntoTab(tab, path, hash);
+  } catch (e: any) {
+    errorMsg.value = `${t("errors.readFailed")}: ${e?.message || e}`;
+    return;
+  }
+  tabs.value.push(tab);
+  activateTab(tab.id);
+}
+
+async function forceReloadTab(tab: Tab) {
+  try {
+    const text = await readTextFile(tab.path);
+    tab.content = text;
+    tab.draftContent = text;
+    tab.isDirty = false;
+    tab.headings = extractHeadings(text);
+    if (tab.id === activeTabId.value) {
+      tab.pendingHash = "";
+      tab.pendingScrollTop = tab.scrollTop;
+      find.clearHighlights();
+    }
   } catch (e: any) {
     errorMsg.value = `${t("errors.readFailed")}: ${e?.message || e}`;
   }
 }
 
+function switchToTab(id: string) {
+  if (id === activeTabId.value) return;
+  saveCurrentScroll();
+  const tab = tabs.value.find((x) => x.id === id);
+  if (!tab) return;
+  tab.pendingHash = "";
+  tab.pendingScrollTop = tab.scrollTop;
+  activateTab(id);
+}
+
+async function saveTab(tab: Tab): Promise<boolean> {
+  if (!tab.path || saving.value) return false;
+  saving.value = true;
+  try {
+    addSuppress(tab.path);
+    await writeTextFile(tab.path, tab.draftContent);
+    tab.content = tab.draftContent;
+    tab.isDirty = false;
+    tab.headings = extractHeadings(tab.draftContent);
+    exportToast.value = t("editor.saved");
+    await refreshTree();
+    scheduleSuppressClear(tab.path);
+    return true;
+  } catch (e: any) {
+    clearSuppress(tab.path);
+    errorMsg.value = `${t("editor.saveFailed")}: ${e?.message ?? e}`;
+    return false;
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveCurrentFile(): Promise<boolean> {
+  const tab = activeTab.value;
+  if (!tab) return false;
+  return saveTab(tab);
+}
+
+async function saveAsCurrentFile(): Promise<boolean> {
+  const tab = activeTab.value;
+  if (!tab || !tab.draftContent || saving.value) return false;
+  const dest = await save({
+    title: t("editor.saveAs"),
+    defaultPath: fileName.value.replace(/\.[^.]+$/, "") + ".md",
+    filters: [
+      { name: "Markdown", extensions: ["md", "markdown", "mdx", "txt"] },
+    ],
+  });
+  if (!dest) return false;
+  saving.value = true;
+  try {
+    addSuppress(dest);
+    await writeTextFile(dest, tab.draftContent);
+    tab.content = tab.draftContent;
+    tab.path = dest;
+    tab.isDirty = false;
+    tab.headings = extractHeadings(tab.draftContent);
+    pushRecent(dest);
+    exportToast.value = `${t("editor.saved")}: ${dest}`;
+    await refreshTree();
+    scheduleSuppressClear(dest);
+    persist();
+    return true;
+  } catch (e: any) {
+    clearSuppress(dest);
+    errorMsg.value = `${t("editor.saveFailed")}: ${e?.message ?? e}`;
+    return false;
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function closeTab(id: string) {
+  const tab = tabs.value.find((x) => x.id === id);
+  if (!tab) return;
+  if (tab.isDirty) {
+    if (id !== activeTabId.value) switchToTab(id);
+    const choice = await askUnsaved(tab, "unsaved");
+    if (choice === "cancel") return;
+    if (choice === "save") {
+      const ok = await saveTab(tab);
+      if (!ok) return;
+    }
+  }
+  removeTab(id);
+}
+
+async function confirmCloseAll(): Promise<boolean> {
+  for (const tab of tabs.value.filter((x) => x.isDirty)) {
+    activateTab(tab.id);
+    const choice = await askUnsaved(tab, "unsaved");
+    if (choice === "cancel") return false;
+    if (choice === "save") {
+      const ok = await saveTab(tab);
+      if (!ok) return false;
+    } else {
+      tab.isDirty = false;
+    }
+  }
+  return true;
+}
+
+function onDialogSave() {
+  resolveDialog("save");
+}
+function onDialogDiscard() {
+  resolveDialog("discard");
+}
+function onDialogCancel() {
+  resolveDialog("cancel");
+}
+
+function toggleEditorMode() {
+  const tab = activeTab.value;
+  if (!tab || !tab.draftContent) return;
+  tab.isEditing = !tab.isEditing;
+  if (tab.isEditing) {
+    find.close();
+    nextTick(() => editorRef.value?.focus());
+  }
+}
+
 function onRendered() {
   nextTick(() => {
-    if (!viewerEl.value) return;
-    if (pendingHash) {
-      jumpTo(pendingHash);
-      pendingHash = "";
-    } else if (pendingScrollTop > 0) {
-      viewerEl.value.scrollTop = pendingScrollTop;
+    const tab = activeTab.value;
+    if (!viewerEl.value || !tab) return;
+    if (tab.pendingHash) {
+      jumpTo(tab.pendingHash);
+      tab.pendingHash = "";
+    } else if (tab.pendingScrollTop > 0) {
+      viewerEl.value.scrollTop = tab.pendingScrollTop;
     } else {
       viewerEl.value.scrollTop = 0;
     }
@@ -134,8 +389,10 @@ function onRendered() {
 }
 
 function saveCurrentScroll() {
-  if (currentFile.value && viewerEl.value) {
-    saveScroll(currentFile.value, viewerEl.value.scrollTop);
+  const tab = activeTab.value;
+  if (tab && tab.path && viewerEl.value && !tab.isEditing) {
+    tab.scrollTop = viewerEl.value.scrollTop;
+    saveScroll(tab.path, viewerEl.value.scrollTop);
   }
 }
 
@@ -157,15 +414,63 @@ async function pickFolder() {
 async function startWatching(dir: string) {
   await watcher.start(dir, async (paths) => {
     await refreshTree();
-    if (currentFile.value && paths.includes(currentFile.value)) {
-      await loadFile(currentFile.value);
-    }
+    window.setTimeout(() => {
+      void onFilesChanged(paths);
+    }, 150);
   });
+}
+
+async function onFilesChanged(paths: string[]) {
+  for (const tab of [...tabs.value]) {
+    if (!paths.some((p) => samePath(p, tab.path))) continue;
+    if (isSuppressed(tab.path)) {
+      clearSuppress(tab.path);
+      continue;
+    }
+    if (!tab.isDirty) {
+      await forceReloadTab(tab);
+    } else {
+      if (showUnsavedDialog.value) return;
+      activateTab(tab.id);
+      const choice = await askUnsaved(tab, "external");
+      if (choice === "save") await forceReloadTab(tab);
+    }
+  }
 }
 
 function closeFolder() {
   void watcher.stop();
   clearRoot();
+}
+
+async function restoreTabs() {
+  const persisted = loadPersisted();
+  let paths: string[] = [];
+  let activePath = "";
+  if (persisted && persisted.paths.length) {
+    paths = persisted.paths;
+    activePath = persisted.activePath;
+  } else {
+    const last = localStorage.getItem("md-reader-last-file");
+    if (last) {
+      paths = [last];
+      activePath = last;
+    }
+  }
+  let activeId = "";
+  for (const path of paths) {
+    if (findTabByPath(path)) continue;
+    const tab = createTab(path);
+    try {
+      await readFileIntoTab(tab, path);
+    } catch {
+      continue;
+    }
+    tabs.value.push(tab);
+    if (samePath(path, activePath)) activeId = tab.id;
+  }
+  if (!activeId && tabs.value.length) activeId = tabs.value[0].id;
+  if (activeId) activateTab(activeId);
 }
 
 function toggleTheme() {
@@ -184,7 +489,12 @@ function applyTheme() {
 }
 
 async function exportHtml() {
-  if (!bodyRef.value || !content.value) return;
+  showExportMenu.value = false;
+  if (isEditing.value) {
+    errorMsg.value = t("editor.previewBeforeExport");
+    return;
+  }
+  if (!bodyRef.value || !draftContent.value) return;
   try {
     await exportToHtml(bodyRef.value, fileName.value || "document.html");
   } catch (e: any) {
@@ -193,15 +503,19 @@ async function exportHtml() {
 }
 
 async function exportDocx() {
-  if (!bodyRef.value || !content.value) return;
   showExportMenu.value = false;
+  if (isEditing.value) {
+    errorMsg.value = t("editor.previewBeforeExport");
+    return;
+  }
+  if (!bodyRef.value || !draftContent.value) return;
   exportBusy.value = true;
   exportToast.value = t("export.generatingDocx");
   try {
     const out = await exportToDocx(
       bodyRef.value,
       fileName.value || "document",
-      fileName.value
+      displayFileName.value
     );
     if (out) exportToast.value = `${t("export.exportedDocx")}: ${out}`;
     else exportToast.value = "";
@@ -214,15 +528,19 @@ async function exportDocx() {
 }
 
 async function exportPdf() {
-  if (!bodyRef.value || !content.value) return;
   showExportMenu.value = false;
+  if (isEditing.value) {
+    errorMsg.value = t("editor.previewBeforeExport");
+    return;
+  }
+  if (!bodyRef.value || !draftContent.value) return;
   exportBusy.value = true;
   exportToast.value = t("export.generatingPdf");
   try {
     const result = await exportToPdf(
       bodyRef.value,
       fileName.value || "document",
-      fileName.value,
+      displayFileName.value,
       async () => {
         const picked = await open({
           title: t("export.chooseEdgePath"),
@@ -252,6 +570,10 @@ async function exportPdf() {
 }
 
 function doPrint() {
+  if (isEditing.value) {
+    errorMsg.value = t("editor.previewBeforeExport");
+    return;
+  }
   if (bodyRef.value) printDocument(bodyRef.value, fileName.value);
 }
 
@@ -263,15 +585,40 @@ function onInternalLink(path: string, hash: string) {
   void loadFile(path, hash);
 }
 
+function onDraftUpdate(value: string) {
+  const tab = activeTab.value;
+  if (!tab) return;
+  tab.draftContent = value;
+  tab.isDirty = value !== tab.content;
+  if (headingTimer) clearTimeout(headingTimer);
+  headingTimer = window.setTimeout(() => {
+    tab.headings = extractHeadings(value);
+  }, 200);
+}
+
 function onKeydown(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key.toLowerCase() === "f" && !e.shiftKey) {
-    e.preventDefault();
-    find.open();
-  } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
+  if (showUnsavedDialog.value) {
+    if (e.key === "Escape") onDialogCancel();
+    return;
+  }
+  if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
     e.preventDefault();
     leftMode.value = "search";
     showFileTree.value = true;
+  } else if (mod && e.key.toLowerCase() === "f") {
+    e.preventDefault();
+    if (isEditing.value) editorRef.value?.openSearch();
+    else find.open();
+  } else if (mod && e.key.toLowerCase() === "h" && isEditing.value) {
+    e.preventDefault();
+    editorRef.value?.openReplace();
+  } else if (mod && e.key.toLowerCase() === "g" && isEditing.value) {
+    e.preventDefault();
+    editorRef.value?.goToLine();
+  } else if (mod && e.shiftKey && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    void saveAsCurrentFile();
   } else if (mod && e.key === ",") {
     e.preventDefault();
     showSettings.value = true;
@@ -280,7 +627,7 @@ function onKeydown(e: KeyboardEvent) {
     doPrint();
   } else if (mod && e.key.toLowerCase() === "s") {
     e.preventDefault();
-    void exportHtml();
+    void saveCurrentFile();
   } else if (e.key === "Escape") {
     if (find.visible.value) find.close();
     else if (showSettings.value) showSettings.value = false;
@@ -289,6 +636,7 @@ function onKeydown(e: KeyboardEvent) {
 
 let scrollSaveTimer: number | null = null;
 function onViewerScroll() {
+  if (isEditing.value) return;
   onScroll();
   if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
   scrollSaveTimer = window.setTimeout(saveCurrentScroll, 400);
@@ -301,8 +649,24 @@ watch(showToc, (v) =>
   localStorage.setItem("md-reader-show-toc", v ? "1" : "0")
 );
 
+watch(isEditing, (editing) => {
+  if (editing) {
+    markdownRef.value = null;
+    return;
+  }
+  nextTick(onScroll);
+});
+
+watch(activeTabId, () => {
+  errorMsg.value = "";
+  find.close();
+  find.clearHighlights();
+  if (!activeTab.value?.isEditing) nextTick(onScroll);
+});
+
 let unlistenDrop: (() => void) | null = null;
 let unlistenOpen: (() => void) | null = null;
+let unlistenClose: (() => void) | null = null;
 
 onMounted(async () => {
   applyTheme();
@@ -325,23 +689,30 @@ onMounted(async () => {
     console.warn("listen open-file unavailable", e);
   }
 
-  const last = localStorage.getItem("md-reader-last-file");
-  if (last && !currentFile.value) {
-    try {
-      await loadFile(last);
-    } catch {
-      /* ignore */
-    }
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    appWindow = getCurrentWindow();
+    unlistenClose = await appWindow.onCloseRequested(async (event) => {
+      if (!tabs.value.some((tb) => tb.isDirty)) {
+        // No unsaved changes: let the default close proceed.
+        return;
+      }
+      event.preventDefault();
+      const ok = await confirmCloseAll();
+      if (ok) await appWindow!.destroy();
+    });
+  } catch (e) {
+    console.warn("close listener unavailable", e);
   }
+
+  await restoreTabs();
   try {
     const webview = getCurrentWebview();
     unlistenDrop = await webview.onDragDropEvent(async (event) => {
       if (event.payload.type === "drop") {
         const paths = event.payload.paths;
         if (paths && paths.length > 0) {
-          const target = paths.find((p) =>
-            /\.(md|markdown|mdx|txt)$/i.test(p)
-          );
+          const target = paths.find((p) => /\.(md|markdown|mdx|txt)$/i.test(p));
           if (target) await loadFile(target);
         }
       }
@@ -355,13 +726,16 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenDrop?.();
   unlistenOpen?.();
+  unlistenClose?.();
+  if (headingTimer) clearTimeout(headingTimer);
   void watcher.stop();
   window.removeEventListener("keydown", onKeydown);
 });
 
-watch(currentFile, (v) => {
-  if (v) localStorage.setItem("md-reader-last-file", v);
-});
+watch(
+  () => tabs.value.map((tb) => tb.path).join("\n"),
+  () => persist()
+);
 
 watch(exportToast, (v) => {
   if (v) {
@@ -375,8 +749,12 @@ watch(exportToast, (v) => {
 <template>
   <div class="app">
     <header class="toolbar">
-      <button class="btn" @click="pickFile" :title="t('app.file') + ' .md'">{{ t("app.file") }}</button>
-      <button class="btn" @click="pickFolder" :title="t('app.folder')">{{ t("app.folder") }}</button>
+      <button class="btn" @click="pickFile" :title="t('app.file') + ' .md'">
+        {{ t("app.file") }}
+      </button>
+      <button class="btn" @click="pickFolder" :title="t('app.folder')">
+        {{ t("app.folder") }}
+      </button>
       <button
         v-if="rootDir"
         class="btn"
@@ -394,26 +772,64 @@ watch(exportToast, (v) => {
       >
         ✕
       </button>
-      <div class="filename" :title="currentFile">{{ fileName }}</div>
+      <div class="filename" :title="currentFile">{{ displayFileName }}</div>
       <button
-        class="btn icon"
-        @click="find.open()"
-        :title="t('toolbar.find') + ' (Ctrl+F)'"
-        :disabled="!content"
+        class="btn"
+        @click="toggleEditorMode"
+        :disabled="!draftContent"
+        :title="isEditing ? t('editor.preview') : t('editor.edit')"
       >
-        🔍
+        {{ isEditing ? t("editor.preview") : t("editor.edit") }}
+        <svg v-if="isEditing" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M1 8s3-6 10-6 10 6 10 6-3 6-10 6-10-6-10-6z"/><circle cx="11" cy="8" r="2.5"/></svg>
+        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M11 2l3 3L4 15H1v-3z"/><path d="M8 6l2 2"/></svg>
+      </button>
+      <button
+        class="btn"
+        @click="() => saveCurrentFile()"
+        :disabled="!draftContent || !isDirty || saving"
+        :title="t('editor.save') + ' (Ctrl+S)'"
+      >
+        {{ t("editor.save") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 2h8l4 4v9H3V2z"/><path d="M11 2v4h4"/><path d="M5 8h6v5H5z"/></svg>
+      </button>
+      <button
+        class="btn"
+        @click="() => saveAsCurrentFile()"
+        :disabled="!draftContent || saving"
+        :title="t('editor.saveAs') + ' (Ctrl+Shift+S)'"
+      >
+        {{ t("editor.saveAs") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 2h6l4 4v8H3V2z"/><path d="M9 2v4h4"/><path d="M6 10h6M6 12h6"/></svg>
+      </button>
+      <button
+        class="btn"
+        @click="isEditing ? editorRef?.openSearch() : find.open()"
+        :title="t('toolbar.find') + ' (Ctrl+F)'"
+        :disabled="!draftContent"
+      >
+        {{ t("toolbar.find") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg>
       </button>
       <div class="export-wrap">
         <button
-          class="btn icon"
+          class="btn"
           @click="showExportMenu = !showExportMenu"
-          :disabled="!content || exportBusy"
-          :title="exportBusy ? t('export.exportBusy') : t('export.exportShortcut')"
+          :disabled="!canExport || exportBusy"
+          :title="
+            exportBusy ? t('export.exportBusy') : t('export.exportShortcut')
+          "
         >
-          {{ exportBusy ? "⏳" : "⤓" }}
+          {{ exportBusy ? "⏳" : t("toolbar.export") + " " }}
+          <svg v-if="!exportBusy" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M8 2v9M4 6l4-4 4 4"/><path d="M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
         </button>
         <div v-if="showExportMenu" class="export-menu" @click.stop>
-          <button class="menu-item" @click="exportHtml(); showExportMenu = false">
+          <button
+            class="menu-item"
+            @click="
+              exportHtml();
+              showExportMenu = false;
+            "
+          >
             <span class="mi-label">{{ t("export.html") }}</span>
             <span class="mi-hint">{{ t("export.htmlHint") }}</span>
           </button>
@@ -421,17 +837,27 @@ watch(exportToast, (v) => {
             class="menu-item"
             :disabled="!pandocInfo?.available"
             @click="exportDocx"
-            :title="!pandocInfo?.available ? t('export.docxRequiresPandoc') : ''"
+            :title="
+              !pandocInfo?.available ? t('export.docxRequiresPandoc') : ''
+            "
           >
             <span class="mi-label">{{ t("export.docx") }}</span>
             <span class="mi-hint">
-              {{ pandocInfo?.available ? t("export.docxHint") : t("export.docxRequiresPandoc") }}
+              {{
+                pandocInfo?.available
+                  ? t("export.docxHint")
+                  : t("export.docxRequiresPandoc")
+              }}
             </span>
           </button>
           <button
             class="menu-item"
             @click="exportPdf"
-            :title="pdfEnginePath ? t('app.usePath', { path: pdfEnginePath }) : t('app.specifyEdgePath')"
+            :title="
+              pdfEnginePath
+                ? t('app.usePath', { path: pdfEnginePath })
+                : t('app.specifyEdgePath')
+            "
           >
             <span class="mi-label">{{ t("export.pdf") }}</span>
             <span class="mi-hint">
@@ -439,40 +865,65 @@ watch(exportToast, (v) => {
             </span>
           </button>
           <div class="menu-divider"></div>
-          <button class="menu-item" @click="doPrint(); showExportMenu = false">
+          <button
+            class="menu-item"
+            @click="
+              doPrint();
+              showExportMenu = false;
+            "
+          >
             <span class="mi-label">{{ t("export.print") }}</span>
             <span class="mi-hint">{{ t("export.printHint") }}</span>
           </button>
         </div>
       </div>
       <button
-        class="btn icon"
+        class="btn"
         @click="showSettings = true"
         :title="t('toolbar.settings') + ' (Ctrl+,)'"
       >
-        ⚙
+        {{ t("toolbar.settingsBtn") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
       </button>
       <button
-        class="btn icon"
+        class="btn"
         @click="showFileTree = !showFileTree"
         :title="t('app.toggleSidebar')"
       >
-        ☰
+        {{ t("toolbar.sidebar") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M6 2v12"/></svg>
       </button>
       <button
-        class="btn icon"
+        class="btn"
         @click="showToc = !showToc"
         :title="t('app.toggleToc')"
       >
-        ≡
+        {{ t("toolbar.outline") }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 3h10M3 7h10M3 11h7"/></svg>
       </button>
-      <button class="btn icon" @click="toggleTheme" :title="t('app.toggleTheme')">
+      <button
+        class="btn icon"
+        @click="toggleTheme"
+        :title="t('app.toggleTheme')"
+      >
         {{ theme === "light" ? "🌙" : "☀️" }}
       </button>
-      <button class="btn lang" @click="toggleLocale" :title="t('app.switchLanguage')">
+      <button
+        class="btn lang"
+        @click="toggleLocale"
+        :title="t('app.switchLanguage')"
+      >
         {{ locale === "zh-CN" ? "EN" : "中" }}
       </button>
     </header>
+
+    <TabBar
+      v-if="tabs.length"
+      :tabs="tabs"
+      :active-tab-id="activeTabId"
+      @activate="switchToTab"
+      @close="closeTab"
+    />
 
     <main class="layout">
       <aside
@@ -523,18 +974,16 @@ watch(exportToast, (v) => {
         </div>
       </aside>
 
-      <div
-        v-if="showFileTree"
-        class="resizer"
-        @pointerdown="resizeLeft"
-      ></div>
+      <div v-if="showFileTree" class="resizer" @pointerdown="resizeLeft"></div>
 
       <section
         ref="viewerEl"
         class="viewer"
+        :class="{ editing: isEditing }"
         @scroll.passive="onViewerScroll"
       >
         <FindBar
+          v-if="!isEditing"
           :visible="find.visible.value"
           :query="find.query.value"
           :case-sensitive="find.caseSensitive.value"
@@ -548,17 +997,24 @@ watch(exportToast, (v) => {
           @close="find.close"
         />
         <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-        <div v-else-if="!content" class="empty">
+        <div v-else-if="!draftContent" class="empty">
           <div class="empty-title">{{ t("app.emptyTitle") }}</div>
           <div class="empty-hint">{{ t("app.emptyHint") }}</div>
           <div class="shortcut-hint">
             {{ t("app.shortcutHint") }}
           </div>
         </div>
+        <MarkdownEditor
+          v-else-if="isEditing"
+          ref="editorRef"
+          :model-value="draftContent"
+          :theme="theme"
+          @update:model-value="onDraftUpdate"
+        />
         <MarkdownView
           v-else
           ref="markdownRef"
-          :source="content"
+          :source="draftContent"
           :current-file="currentFile"
           :root-dir="rootDir"
           :render-tick="renderTick"
@@ -569,22 +1025,33 @@ watch(exportToast, (v) => {
 
       <div v-if="showToc" class="resizer" @pointerdown="resizeRight"></div>
 
-      <aside
-        v-if="showToc"
-        class="right"
-        :style="{ width: rightWidth + 'px' }"
-      >
-        <TocPanel
-          :headings="headings"
-          :active-id="activeId"
-          @jump="jumpTo"
-        />
+      <aside v-if="showToc" class="right" :style="{ width: rightWidth + 'px' }">
+        <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
       </aside>
     </main>
 
-    <SettingsDialog
-      :visible="showSettings"
-      @close="showSettings = false"
+    <SettingsDialog :visible="showSettings" @close="showSettings = false" />
+
+    <UnsavedChangesDialog
+      :visible="showUnsavedDialog"
+      :title="unsavedDialogTitle"
+      :message="unsavedDialogMessage"
+      :file-name="dialogFileName"
+      :save-label="
+        unsavedDialogMode === 'external'
+          ? t('editor.reloadFromDisk')
+          : t('editor.saveAndContinue')
+      "
+      :discard-label="
+        unsavedDialogMode === 'external'
+          ? t('editor.keepEditing')
+          : t('editor.discardAndContinue')
+      "
+      @save="onDialogSave"
+      @discard="
+        unsavedDialogMode === 'external' ? onDialogCancel() : onDialogDiscard()
+      "
+      @cancel="onDialogCancel"
     />
 
     <div v-if="exportToast" class="toast" @click="exportToast = ''">
@@ -711,6 +1178,9 @@ watch(exportToast, (v) => {
   background: var(--bg);
   min-width: 0;
   position: relative;
+}
+.viewer.editing {
+  overflow: hidden;
 }
 .empty {
   height: 100%;

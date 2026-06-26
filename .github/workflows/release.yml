@@ -1,0 +1,79 @@
+name: Release (macOS / Linux experimental)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # 允许创建 Release 并上传产物
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+            rust_targets: "aarch64-apple-darwin,x86_64-apple-darwin"
+          - platform: ubuntu-22.04
+            args: ""
+            rust_targets: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build & attach to release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "MD Reader ${{ github.ref_name }}"
+          releaseBody: |
+            Windows: 见下方 .msi（安装版）/ .exe（绿色版）。
+
+            macOS / Linux 为**实验版**，由 CI 自动构建、未做代码签名：
+            - macOS: 首次打开右键 → 打开，或 `xattr -dr com.apple.quarantine "MD Reader.app"`
+            - Linux: AppImage 需先 `chmod +x`
+          releaseDraft: true # 草稿：补充 Windows 包后再手动发布
+          prerelease: false
+          args: ${{ matrix.args }}
