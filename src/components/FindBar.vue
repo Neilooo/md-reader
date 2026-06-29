@@ -90,9 +90,9 @@ onMounted(() => {
 
 <style scoped>
 .find-bar {
-  position: absolute;
-  top: 8px;
-  right: 16px;
+  position: fixed;
+  top: 84px;
+  right: 24px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -101,7 +101,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 10;
+  z-index: 25;
 }
 .find-input {
   width: 200px;

@@ -11,7 +11,7 @@ const zhCN = {
     openFolderHint: "点击「文件夹」\n打开目录浏览所有 md 文件",
     emptyTitle: "MD Reader",
     emptyHint: "点击「文件」或「文件夹」开始\n也可将 .md 文件拖入此窗口",
-    shortcutHint: "Ctrl+F 查找 · Ctrl+S 保存 · Ctrl+Shift+F 全文搜索",
+    shortcutHint: "Ctrl+N 新建 · Ctrl+F 查找 · Ctrl+S 保存 · Ctrl+Shift+F 全文搜索",
     toggleSidebar: "显示/隐藏侧栏",
     toggleToc: "显示/隐藏大纲",
     toggleTheme: "切换主题",
@@ -21,6 +21,7 @@ const zhCN = {
     specifyEdgePath: "将在导出时让你手动指定 Edge 路径",
   },
   toolbar: {
+    new: "新建",
     find: "查找",
     export: "导出",
     settings: "阅读设置",
@@ -100,6 +101,9 @@ const zhCN = {
     reloadFromDisk: "重新加载",
     keepEditing: "保留编辑",
     previewBeforeExport: "请先切换到预览模式再导出或打印",
+    newFile: "新建 Markdown 文件",
+    created: "已创建",
+    createFailed: "创建失败",
   },
   toc: {
     title: "大纲",
@@ -110,6 +114,7 @@ const zhCN = {
   },
   errors: {
     readFailed: "读取失败",
+    fileExists: "文件已存在，请换个文件名",
   },
 };
 

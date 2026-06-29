@@ -152,6 +152,7 @@ const displayFileName = computed(() =>
   isDirty.value ? `${fileName.value} *` : fileName.value
 );
 const canExport = computed(() => Boolean(activeTab.value?.draftContent));
+const hasActiveFile = computed(() => Boolean(activeTab.value?.path));
 const dialogFileName = computed(() =>
   dialogTab.value ? basename(dialogTab.value.path) : ""
 );
@@ -291,7 +292,7 @@ async function saveCurrentFile(): Promise<boolean> {
 
 async function saveAsCurrentFile(): Promise<boolean> {
   const tab = activeTab.value;
-  if (!tab || !tab.draftContent || saving.value) return false;
+  if (!tab || saving.value) return false;
   const dest = await save({
     title: t("editor.saveAs"),
     defaultPath: fileName.value.replace(/\.[^.]+$/, "") + ".md",
@@ -365,11 +366,13 @@ function onDialogCancel() {
 
 function toggleEditorMode() {
   const tab = activeTab.value;
-  if (!tab || !tab.draftContent) return;
+  if (!tab) return;
   tab.isEditing = !tab.isEditing;
   if (tab.isEditing) {
     find.close();
     nextTick(() => editorRef.value?.focus());
+  } else {
+    find.reset();
   }
 }
 
@@ -393,6 +396,56 @@ function saveCurrentScroll() {
   if (tab && tab.path && viewerEl.value && !tab.isEditing) {
     tab.scrollTop = viewerEl.value.scrollTop;
     saveScroll(tab.path, viewerEl.value.scrollTop);
+  }
+}
+
+function withMarkdownExtension(path: string): string {
+  return /\.(md|markdown|mdx|txt)$/i.test(path) ? path : `${path}.md`;
+}
+
+async function createNewFile() {
+  const dest = await save({
+    title: t("editor.newFile"),
+    defaultPath: "untitled.md",
+    filters: [
+      { name: "Markdown", extensions: ["md", "markdown", "mdx", "txt"] },
+    ],
+  });
+  if (!dest) return;
+  const path = withMarkdownExtension(dest);
+  saving.value = true;
+  try {
+    addSuppress(path);
+    await writeTextFile(path, "");
+    saveCurrentScroll();
+    let tab = findTabByPath(path);
+    if (!tab) {
+      tab = createTab(path);
+      tabs.value.push(tab);
+    }
+    tab.path = path;
+    tab.content = "";
+    tab.draftContent = "";
+    tab.isDirty = false;
+    tab.isEditing = true;
+    tab.headings = [];
+    tab.pendingHash = "";
+    tab.pendingScrollTop = 0;
+    tab.scrollTop = 0;
+    pushRecent(path);
+    activateTab(tab.id);
+    errorMsg.value = "";
+    exportToast.value = `${t("editor.created")}: ${path}`;
+    await refreshTree();
+    scheduleSuppressClear(path);
+    persist();
+    await nextTick();
+    editorRef.value?.focus();
+  } catch (e: any) {
+    clearSuppress(path);
+    errorMsg.value = `${t("editor.createFailed")}: ${e?.message ?? e}`;
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -602,7 +655,10 @@ function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") onDialogCancel();
     return;
   }
-  if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
+  if (mod && e.key.toLowerCase() === "n") {
+    e.preventDefault();
+    void createNewFile();
+  } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
     e.preventDefault();
     leftMode.value = "search";
     showFileTree.value = true;
@@ -749,6 +805,9 @@ watch(exportToast, (v) => {
 <template>
   <div class="app">
     <header class="toolbar">
+      <button class="btn" @click="createNewFile" :title="t('toolbar.new') + ' (Ctrl+N)'">
+        {{ t("toolbar.new") }}
+      </button>
       <button class="btn" @click="pickFile" :title="t('app.file') + ' .md'">
         {{ t("app.file") }}
       </button>
@@ -776,7 +835,7 @@ watch(exportToast, (v) => {
       <button
         class="btn"
         @click="toggleEditorMode"
-        :disabled="!draftContent"
+        :disabled="!hasActiveFile"
         :title="isEditing ? t('editor.preview') : t('editor.edit')"
       >
         {{ isEditing ? t("editor.preview") : t("editor.edit") }}
@@ -786,7 +845,7 @@ watch(exportToast, (v) => {
       <button
         class="btn"
         @click="() => saveCurrentFile()"
-        :disabled="!draftContent || !isDirty || saving"
+        :disabled="!hasActiveFile || !isDirty || saving"
         :title="t('editor.save') + ' (Ctrl+S)'"
       >
         {{ t("editor.save") }}
@@ -795,7 +854,7 @@ watch(exportToast, (v) => {
       <button
         class="btn"
         @click="() => saveAsCurrentFile()"
-        :disabled="!draftContent || saving"
+        :disabled="!hasActiveFile || saving"
         :title="t('editor.saveAs') + ' (Ctrl+Shift+S)'"
       >
         {{ t("editor.saveAs") }}
@@ -805,7 +864,7 @@ watch(exportToast, (v) => {
         class="btn"
         @click="isEditing ? editorRef?.openSearch() : find.open()"
         :title="t('toolbar.find') + ' (Ctrl+F)'"
-        :disabled="!draftContent"
+        :disabled="!hasActiveFile"
       >
         {{ t("toolbar.find") }}
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg>
@@ -982,22 +1041,8 @@ watch(exportToast, (v) => {
         :class="{ editing: isEditing }"
         @scroll.passive="onViewerScroll"
       >
-        <FindBar
-          v-if="!isEditing"
-          :visible="find.visible.value"
-          :query="find.query.value"
-          :case-sensitive="find.caseSensitive.value"
-          :total="find.total.value"
-          :active-index="find.activeIndex.value"
-          @update:query="(v) => (find.query.value = v)"
-          @update:case-sensitive="(v) => (find.caseSensitive.value = v)"
-          @search="find.search"
-          @next="find.next"
-          @prev="find.prev"
-          @close="find.close"
-        />
         <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-        <div v-else-if="!draftContent" class="empty">
+        <div v-else-if="!hasActiveFile" class="empty">
           <div class="empty-title">{{ t("app.emptyTitle") }}</div>
           <div class="empty-hint">{{ t("app.emptyHint") }}</div>
           <div class="shortcut-hint">
@@ -1029,6 +1074,21 @@ watch(exportToast, (v) => {
         <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
       </aside>
     </main>
+
+    <FindBar
+      v-if="!isEditing"
+      :visible="find.visible.value"
+      :query="find.query.value"
+      :case-sensitive="find.caseSensitive.value"
+      :total="find.total.value"
+      :active-index="find.activeIndex.value"
+      @update:query="(v) => (find.query.value = v)"
+      @update:case-sensitive="(v) => (find.caseSensitive.value = v)"
+      @search="find.search"
+      @next="find.next"
+      @prev="find.prev"
+      @close="find.close"
+    />
 
     <SettingsDialog :visible="showSettings" @close="showSettings = false" />
 

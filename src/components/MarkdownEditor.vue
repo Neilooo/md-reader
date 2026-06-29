@@ -5,7 +5,14 @@ import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { gotoLine, openSearchPanel, search, searchKeymap } from "@codemirror/search";
+import {
+  getSearchQuery,
+  gotoLine,
+  openSearchPanel,
+  search,
+  searchKeymap,
+  searchPanelOpen,
+} from "@codemirror/search";
 import { oneDark } from "@codemirror/theme-one-dark";
 
 const props = defineProps<{
@@ -20,7 +27,10 @@ const emit = defineEmits<{
 }>();
 
 const host = ref<HTMLElement | null>(null);
+const searchCounter = ref({ visible: false, current: 0, total: 0 });
 let view: EditorView | null = null;
+let searchCounterTimer: number | null = null;
+let lastSearchKey = "";
 
 const themeCompartment = new Compartment();
 const editableCompartment = new Compartment();
@@ -100,6 +110,79 @@ function editableExtension() {
   return EditorView.editable.of(!props.readonly);
 }
 
+function searchKey(): string {
+  if (!view) return "";
+  if (!searchPanelOpen(view.state)) return "closed";
+  const query = getSearchQuery(view.state);
+  return JSON.stringify({
+    search: query.search,
+    caseSensitive: query.caseSensitive,
+    literal: query.literal,
+    regexp: query.regexp,
+    wholeWord: query.wholeWord,
+    valid: query.valid,
+    docLength: view.state.doc.length,
+  });
+}
+
+function updateSearchCounter() {
+  if (!view || !searchPanelOpen(view.state)) {
+    lastSearchKey = "closed";
+    searchCounter.value = { visible: false, current: 0, total: 0 };
+    return;
+  }
+  const key = searchKey();
+  lastSearchKey = key;
+  const query = getSearchQuery(view.state);
+  if (!query.valid || !query.search) {
+    searchCounter.value = { visible: true, current: 0, total: 0 };
+    return;
+  }
+  const selection = view.state.selection.main;
+  const cursor = query.getCursor(view.state, 0, view.state.doc.length);
+  let total = 0;
+  let current = 0;
+  let firstAfterSelection = 0;
+  for (let next = cursor.next(); !next.done; next = cursor.next()) {
+    total += 1;
+    const match = next.value;
+    if (match.from === selection.from && match.to === selection.to) current = total;
+    if (!firstAfterSelection && match.from >= selection.from) firstAfterSelection = total;
+  }
+  if (!current) current = firstAfterSelection || (total ? 1 : 0);
+  searchCounter.value = {
+    visible: true,
+    current,
+    total,
+  };
+}
+
+function scheduleSearchCounterUpdate(force = false) {
+  if (!view) return;
+  if (!force) {
+    const nextKey = searchKey();
+    if (nextKey === lastSearchKey && !view.state.selection.main.empty) return;
+  }
+  if (searchCounterTimer !== null) window.clearTimeout(searchCounterTimer);
+  searchCounterTimer = window.setTimeout(() => {
+    searchCounterTimer = null;
+    updateSearchCounter();
+  }, 80);
+}
+
+function focusSearchInput() {
+  if (!view) return;
+  window.requestAnimationFrame(() => {
+    const root = view?.dom.parentElement ?? host.value;
+    const input = root?.querySelector<HTMLInputElement>(
+      '.cm-search [main-field="true"], .cm-search input[name="search"], .cm-search input'
+    );
+    input?.focus();
+    input?.select();
+    updateSearchCounter();
+  });
+}
+
 function createEditor() {
   if (!host.value) return;
   view = new EditorView({
@@ -113,7 +196,20 @@ function createEditor() {
         replacePanelTheme,
         keymap.of([
           indentWithTab,
-          { key: "Mod-h", run: openSearchPanel },
+          {
+            key: "Mod-f",
+            run: () => {
+              openSearch();
+              return true;
+            },
+          },
+          {
+            key: "Mod-h",
+            run: () => {
+              openReplace();
+              return true;
+            },
+          },
           ...searchKeymap,
         ]),
         themeCompartment.of(themeExtension()),
@@ -123,11 +219,15 @@ function createEditor() {
           if (update.docChanged) {
             emit("update:modelValue", update.state.doc.toString());
           }
+          if (update.docChanged || update.selectionSet || update.transactions.length) {
+            scheduleSearchCounterUpdate(update.docChanged || update.selectionSet);
+          }
         }),
       ],
     }),
   });
   emit("ready");
+  updateSearchCounter();
 }
 
 function replaceDoc(value: string) {
@@ -148,7 +248,7 @@ function focus() {
 function openSearch() {
   if (!view) return;
   openSearchPanel(view);
-  view.focus();
+  focusSearchInput();
 }
 
 function openReplace() {
@@ -165,6 +265,10 @@ onMounted(createEditor);
 onBeforeUnmount(() => {
   view?.destroy();
   view = null;
+  if (searchCounterTimer !== null) {
+    window.clearTimeout(searchCounterTimer);
+    searchCounterTimer = null;
+  }
 });
 
 watch(
@@ -195,13 +299,40 @@ defineExpose({ focus, openSearch, openReplace, goToLine });
 </script>
 
 <template>
-  <div ref="host" class="markdown-editor"></div>
+  <div class="markdown-editor-shell">
+    <div ref="host" class="markdown-editor"></div>
+    <div v-if="searchCounter.visible" class="editor-find-counter">
+      {{ searchCounter.current }}/{{ searchCounter.total }}
+    </div>
+  </div>
 </template>
 
 <style scoped>
+.markdown-editor-shell {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 .markdown-editor {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+.editor-find-counter {
+  position: absolute;
+  top: 58px;
+  right: 16px;
+  z-index: 8;
+  min-width: 44px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-toolbar);
+  color: var(--fg-muted);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
 }
 </style>

@@ -14,7 +14,7 @@ const enUS = {
     emptyTitle: "MD Reader",
     emptyHint:
       'Click "File" or "Folder" to get started\nYou can also drag a .md file into this window',
-    shortcutHint: "Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
+    shortcutHint: "Ctrl+N New · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
     toggleSidebar: "Toggle sidebar",
     toggleToc: "Toggle outline",
     toggleTheme: "Toggle theme",
@@ -24,6 +24,7 @@ const enUS = {
     specifyEdgePath: "You can choose the Edge path when exporting",
   },
   toolbar: {
+    new: "New",
     find: "Find",
     export: "Export",
     settings: "Reading settings",
@@ -104,6 +105,9 @@ const enUS = {
     reloadFromDisk: "Reload",
     keepEditing: "Keep editing",
     previewBeforeExport: "Switch to preview mode before exporting or printing",
+    newFile: "New Markdown file",
+    created: "Created",
+    createFailed: "Failed to create",
   },
   toc: {
     title: "Outline",
@@ -114,6 +118,7 @@ const enUS = {
   },
   errors: {
     readFailed: "Failed to read file",
+    fileExists: "File already exists. Choose another name.",
   },
 } satisfies MessageSchema;
 
