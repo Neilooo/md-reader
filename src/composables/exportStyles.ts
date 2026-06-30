@@ -24,6 +24,13 @@ code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 4px; font-size:
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 pre { background: #f6f8fa; padding: 14px 16px; border-radius: 6px; overflow: auto; }
 pre code { background: transparent; padding: 0; }
+.front-matter { margin: 0 0 1.25em; padding: 12px 14px; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa; }
+.front-matter-title { margin-bottom: 8px; color: #57606a; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.front-matter table { margin: 0; width: 100%; display: table; }
+.front-matter th { width: 1%; white-space: nowrap; color: #57606a; vertical-align: top; }
+.front-matter td ul { margin: 0; padding-left: 1.3em; }
+.front-matter pre { margin: 0; padding: 8px 10px; }
+.front-matter-error { color: #c00; }
 .table-wrap { overflow-x: auto; margin: 0 0 1em; }
 table { border-collapse: collapse; width: 100%; display: table; }
 th, td { border: 1px solid #d0d7de; padding: 6px 12px; }

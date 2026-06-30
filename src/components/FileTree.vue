@@ -26,15 +26,15 @@ function toggle(key: string) {
         <div
           class="row dir"
           :style="{ paddingLeft: (depth || 0) * 12 + 8 + 'px' }"
-          @click="toggle(node.name + ':' + (depth || 0))"
+          @click="toggle(node.path)"
         >
           <span class="caret">
-            {{ collapsed[node.name + ":" + (depth || 0)] ? "▶" : "▼" }}
+            {{ collapsed[node.path] ? "▶" : "▼" }}
           </span>
           <span class="name">{{ node.name }}</span>
         </div>
         <FileTree
-          v-if="!collapsed[node.name + ':' + (depth || 0)] && node.children"
+          v-if="!collapsed[node.path] && node.children"
           :nodes="node.children"
           :current-path="currentPath"
           :depth="(depth || 0) + 1"

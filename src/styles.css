@@ -261,6 +261,44 @@ body {
   padding: 0;
   font-size: 0.9em;
 }
+.markdown-body .front-matter {
+  margin: 0 0 1.25em;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-toolbar);
+  color: var(--fg);
+}
+.markdown-body .front-matter-title {
+  margin-bottom: 8px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.markdown-body .front-matter table {
+  margin: 0;
+  width: 100%;
+  display: table;
+}
+.markdown-body .front-matter th {
+  width: 1%;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  vertical-align: top;
+}
+.markdown-body .front-matter td ul {
+  margin: 0;
+  padding-left: 1.3em;
+}
+.markdown-body .front-matter pre {
+  margin: 0;
+  padding: 8px 10px;
+}
+.markdown-body .front-matter-error {
+  color: #c00;
+}
 .markdown-body .table-wrap {
   overflow-x: auto;
   margin: 0 0 1em;

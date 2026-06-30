@@ -41,7 +41,12 @@ function buildTree(items: MdFile[]): TreeNode[] {
       } else {
         let next = cur.children!.find((c) => c.isDir && c.name === part);
         if (!next) {
-          next = { name: part, path: "", isDir: true, children: [] };
+          next = {
+            name: part,
+            path: parts.slice(0, i + 1).join("/"),
+            isDir: true,
+            children: [],
+          };
           cur.children!.push(next);
         }
         cur = next;

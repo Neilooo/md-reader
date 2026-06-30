@@ -3,6 +3,7 @@ import { ref } from "vue";
 const STORAGE_RECENT = "md-reader-recent";
 const STORAGE_SCROLL = "md-reader-scroll-positions";
 const MAX_RECENT = 20;
+const MAX_SCROLL_ENTRIES = 100;
 
 export interface RecentItem {
   path: string;
@@ -54,6 +55,11 @@ function clearRecent() {
 function saveScroll(path: string, top: number) {
   if (!path) return;
   scrollMap.value[path] = top;
+  const recentPaths = new Set(recent.value.map((x) => x.path));
+  for (const key of Object.keys(scrollMap.value)) {
+    if (Object.keys(scrollMap.value).length <= MAX_SCROLL_ENTRIES) break;
+    if (!recentPaths.has(key)) delete scrollMap.value[key];
+  }
   localStorage.setItem(STORAGE_SCROLL, JSON.stringify(scrollMap.value));
 }
 

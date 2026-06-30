@@ -4,6 +4,7 @@ import type Renderer from "markdown-it/lib/renderer.mjs";
 import type { Options } from "markdown-it";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
+import { parse as parseYaml } from "yaml";
 import anchor from "markdown-it-anchor";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
@@ -26,7 +27,7 @@ const md: MarkdownIt = new MarkdownIt({
           hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
           "</code></pre>"
         );
-      } catch (_) {
+      } catch {
         /* ignore */
       }
     }
@@ -53,9 +54,10 @@ md.use(emoji);
 md.use(mathPlugin);
 
 md.core.ruler.push("source_line_attrs", (state) => {
+  const offset = Number((state.env as { sourceLineOffset?: number }).sourceLineOffset || 0);
   for (const token of state.tokens) {
     if (token.nesting === 1 && token.map) {
-      token.attrSet("data-source-line", String(token.map[0] + 1));
+      token.attrSet("data-source-line", String(token.map[0] + 1 + offset));
     }
   }
 });
@@ -95,9 +97,79 @@ export interface Heading {
   id: string;
 }
 
+interface FrontMatterBlock {
+  raw: string;
+  body: string;
+  bodyStartLine: number;
+  data: unknown;
+  error: string;
+}
+
+function splitFrontMatter(source: string): FrontMatterBlock | null {
+  const normalized = source.startsWith("\ufeff") ? source.slice(1) : source;
+  const lines = normalized.split(/\r?\n/);
+  if (lines[0] !== "---") return null;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i] !== "---") continue;
+    const raw = lines.slice(1, i).join("\n");
+    let data: unknown = null;
+    let error = "";
+    try {
+      data = raw.trim() ? parseYaml(raw) : null;
+    } catch (e: any) {
+      error = String(e?.message ?? e);
+    }
+    return {
+      raw,
+      body: lines.slice(i + 1).join("\n"),
+      bodyStartLine: i + 2,
+      data,
+      error,
+    };
+  }
+  return null;
+}
+
+function escapeHtml(s: string): string {
+  return md.utils.escapeHtml(s);
+}
+
+function formatFrontMatterValue(value: unknown): string {
+  if (value == null) return "";
+  if (Array.isArray(value)) {
+    if (!value.length) return "[]";
+    return `<ul>${value.map((item) => `<li>${formatFrontMatterValue(item)}</li>`).join("")}</ul>`;
+  }
+  if (typeof value === "object") {
+    return `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+  }
+  return escapeHtml(String(value));
+}
+
+function renderFrontMatter(block: FrontMatterBlock): string {
+  const rows: string[] = [];
+  if (block.error) {
+    rows.push(
+      `<tr><th>Error</th><td class="front-matter-error">${escapeHtml(block.error)}</td></tr>`
+    );
+    rows.push(`<tr><th>Raw</th><td><pre>${escapeHtml(block.raw)}</pre></td></tr>`);
+  } else if (block.data && typeof block.data === "object" && !Array.isArray(block.data)) {
+    for (const [key, value] of Object.entries(block.data as Record<string, unknown>)) {
+      rows.push(`<tr><th>${escapeHtml(key)}</th><td>${formatFrontMatterValue(value)}</td></tr>`);
+    }
+  } else if (block.data != null) {
+    rows.push(`<tr><th>Value</th><td>${formatFrontMatterValue(block.data)}</td></tr>`);
+  } else {
+    rows.push(`<tr><th>Raw</th><td><pre>${escapeHtml(block.raw)}</pre></td></tr>`);
+  }
+  return `<section class="front-matter" data-source-line="1"><div class="front-matter-title">YAML Front Matter</div><table><tbody>${rows.join("")}</tbody></table></section>`;
+}
+
 export function extractHeadings(source: string): Heading[] {
-  const env = {};
-  const tokens = md.parse(source, env);
+  const block = splitFrontMatter(source);
+  const body = block ? block.body : source;
+  const env = { sourceLineOffset: block ? block.bodyStartLine - 1 : 0 };
+  const tokens = md.parse(body, env);
   const headings: Heading[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -113,7 +185,11 @@ export function extractHeadings(source: string): Heading[] {
 }
 
 export function renderMarkdown(source: string): string {
-  const raw = md.render(source);
+  const block = splitFrontMatter(source);
+  const body = block ? block.body : source;
+  const offset = block ? block.bodyStartLine - 1 : 0;
+  const rawFrontMatter = block ? renderFrontMatter(block) : "";
+  const raw = rawFrontMatter + md.render(body, { sourceLineOffset: offset });
   return DOMPurify.sanitize(raw, {
     ADD_ATTR: ["target", "data-math", "data-source-line"],
   });
@@ -199,12 +275,15 @@ export async function renderMermaid(
     const id = `mermaid-${Date.now()}-${mermaidIdCounter++}`;
     try {
       const { svg } = await mermaid.render(id, code);
-      el.innerHTML = svg;
+      el.innerHTML = DOMPurify.sanitize(svg, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+      });
       el.classList.add("mermaid-rendered");
     } catch (e: any) {
-      el.innerHTML = `<pre class="mermaid-error">Mermaid: ${String(
-        e?.message ?? e
-      )}</pre>`;
+      const pre = document.createElement("pre");
+      pre.className = "mermaid-error";
+      pre.textContent = `Mermaid: ${String(e?.message ?? e)}`;
+      el.replaceChildren(pre);
       el.classList.add("mermaid-rendered");
     }
   }

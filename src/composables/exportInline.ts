@@ -54,7 +54,50 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
+function isPrivateUrl(url: string): boolean {
+  let u: InstanceType<typeof globalThis.URL>;
+  try {
+    u = new globalThis.URL(url);
+  } catch {
+    return true;
+  }
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+    return true;
+  }
+  const mapped = host.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  const ipv4Host = mapped ? mapped[1] : host;
+  const v4 = ipv4Host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const octets = v4.slice(1).map((s) => Number.parseInt(s, 10));
+    if (octets.some((n) => n > 255)) return true;
+    const [first, second] = octets;
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168) ||
+      (first === 100 && second >= 64 && second <= 127)
+    );
+  }
+  if (host.includes(":")) {
+    return (
+      host === "::" ||
+      host === "::1" ||
+      host === "0:0:0:0:0:0:0:0" ||
+      host === "0:0:0:0:0:0:0:1" ||
+      host.startsWith("fe80:") ||
+      host.startsWith("fc") ||
+      host.startsWith("fd")
+    );
+  }
+  return false;
+}
+
 async function fetchAsDataUrl(url: string): Promise<string | null> {
+  if (isPrivateUrl(url)) return null;
   try {
     const r = await fetch(url);
     if (!r.ok) return null;
