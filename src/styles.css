@@ -210,8 +210,7 @@ body {
 .markdown-body ul,
 .markdown-body ol,
 .markdown-body blockquote,
-.markdown-body pre,
-.markdown-body table {
+.markdown-body pre {
   margin: 0 0 1em;
 }
 .markdown-body ul,
@@ -262,11 +261,14 @@ body {
   padding: 0;
   font-size: 0.9em;
 }
+.markdown-body .table-wrap {
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;
-  display: block;
-  overflow-x: auto;
+  display: table;
 }
 .markdown-body th,
 .markdown-body td {

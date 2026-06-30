@@ -43,10 +43,14 @@ const minLevel = computed(() =>
 
 <style scoped>
 .toc {
-  padding: 8px 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   font-size: 13px;
 }
 .toc-title {
+  flex: 0 0 auto;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -56,9 +60,12 @@ const minLevel = computed(() =>
   margin-bottom: 4px;
 }
 .toc-list {
+  flex: 1 1 auto;
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+  min-height: 0;
 }
 .toc-item {
   padding: 3px 8px;

@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import { ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
 
 const { t } = useI18n();
+const associationBusy = ref(false);
+const associationStatus = ref<"" | "success" | "error">("");
+const associationMessage = ref("");
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -16,6 +21,22 @@ const {
   setFontFamily,
   reset,
 } = useReadingSettings();
+
+async function registerAssociations() {
+  associationBusy.value = true;
+  associationStatus.value = "";
+  associationMessage.value = "";
+  try {
+    await invoke("register_file_associations");
+    associationStatus.value = "success";
+    associationMessage.value = t("settings.associationSuccess");
+  } catch (e: any) {
+    associationStatus.value = "error";
+    associationMessage.value = `${t("settings.associationFailed")}: ${e?.message ?? e}`;
+  } finally {
+    associationBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -79,6 +100,27 @@ const {
             {{ opt.label }}
           </option>
         </select>
+      </div>
+
+      <div class="association">
+        <div>
+          <div class="association-title">{{ t("settings.fileAssociation") }}</div>
+          <div class="association-hint">{{ t("settings.fileAssociationHint") }}</div>
+          <div
+            v-if="associationMessage"
+            class="association-status"
+            :class="associationStatus"
+          >
+            {{ associationMessage }}
+          </div>
+        </div>
+        <button
+          class="btn"
+          :disabled="associationBusy"
+          @click="registerAssociations"
+        >
+          {{ associationBusy ? t("settings.registering") : t("settings.registerAssociation") }}
+        </button>
       </div>
 
       <div class="footer">
@@ -145,6 +187,35 @@ select {
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
+}
+.association {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.association-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.association-hint {
+  margin-top: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.association-status {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.association-status.success {
+  color: var(--link);
+}
+.association-status.error {
+  color: #c00;
 }
 .footer {
   margin-top: 18px;

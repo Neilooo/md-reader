@@ -75,6 +75,8 @@ const editorRef = ref<{
   openSearch: () => void;
   openReplace: () => void;
   goToLine: () => void;
+  getTopVisibleLine: () => number;
+  scrollToLine: (line: number) => void;
 } | null>(null);
 
 type UnsavedChoice = "save" | "discard" | "cancel";
@@ -204,6 +206,7 @@ async function readFileIntoTab(tab: Tab, path: string, hash = "") {
   tab.headings = extractHeadings(text);
   tab.pendingHash = hash;
   tab.pendingScrollTop = hash ? 0 : getScroll(path);
+  tab.pendingSourceLine = 0;
   tab.scrollTop = tab.pendingScrollTop;
   pushRecent(path);
   errorMsg.value = "";
@@ -216,9 +219,11 @@ async function loadFile(path: string, hash = "") {
     if (hash) {
       existing.pendingHash = hash;
       existing.pendingScrollTop = 0;
+      existing.pendingSourceLine = 0;
     } else {
       existing.pendingHash = "";
       existing.pendingScrollTop = existing.scrollTop;
+      existing.pendingSourceLine = 0;
     }
     activateTab(existing.id);
     return;
@@ -245,6 +250,7 @@ async function forceReloadTab(tab: Tab) {
     if (tab.id === activeTabId.value) {
       tab.pendingHash = "";
       tab.pendingScrollTop = tab.scrollTop;
+      tab.pendingSourceLine = 0;
       find.clearHighlights();
     }
   } catch (e: any) {
@@ -259,6 +265,7 @@ function switchToTab(id: string) {
   if (!tab) return;
   tab.pendingHash = "";
   tab.pendingScrollTop = tab.scrollTop;
+  tab.pendingSourceLine = 0;
   activateTab(id);
 }
 
@@ -364,16 +371,65 @@ function onDialogCancel() {
   resolveDialog("cancel");
 }
 
+function getPreviewTopSourceLine(): number {
+  const container = viewerEl.value;
+  const body = bodyRef.value;
+  if (!container || !body) return 1;
+  const containerTop = container.getBoundingClientRect().top;
+  const items = Array.from(
+    body.querySelectorAll<HTMLElement>("[data-source-line]")
+  );
+  let current = 1;
+  for (const item of items) {
+    const line = Number(item.dataset.sourceLine || "0");
+    if (!line) continue;
+    const top = item.getBoundingClientRect().top - containerTop;
+    if (top <= 16) {
+      current = line;
+    } else {
+      return current === 1 ? line : current;
+    }
+  }
+  return current;
+}
+
+function scrollPreviewToSourceLine(line: number) {
+  const container = viewerEl.value;
+  const body = bodyRef.value;
+  if (!container || !body) return;
+  const items = Array.from(
+    body.querySelectorAll<HTMLElement>("[data-source-line]")
+  );
+  let target = items[0] ?? null;
+  let targetLine = 0;
+  for (const item of items) {
+    const itemLine = Number(item.dataset.sourceLine || "0");
+    if (!itemLine) continue;
+    if (itemLine <= line && itemLine >= targetLine) {
+      target = item;
+      targetLine = itemLine;
+    }
+  }
+  if (!target) return;
+  container.scrollTop +=
+    target.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
+}
+
 function toggleEditorMode() {
   const tab = activeTab.value;
   if (!tab) return;
-  tab.isEditing = !tab.isEditing;
   if (tab.isEditing) {
-    find.close();
-    nextTick(() => editorRef.value?.focus());
-  } else {
+    tab.pendingSourceLine = editorRef.value?.getTopVisibleLine() ?? 1;
+    tab.pendingScrollTop = 0;
+    tab.isEditing = false;
     find.reset();
+    return;
   }
+  const line = getPreviewTopSourceLine();
+  tab.pendingSourceLine = 0;
+  tab.isEditing = true;
+  find.close();
+  nextTick(() => editorRef.value?.scrollToLine(line));
 }
 
 function onRendered() {
@@ -383,6 +439,9 @@ function onRendered() {
     if (tab.pendingHash) {
       jumpTo(tab.pendingHash);
       tab.pendingHash = "";
+    } else if (tab.pendingSourceLine > 0) {
+      scrollPreviewToSourceLine(tab.pendingSourceLine);
+      tab.pendingSourceLine = 0;
     } else if (tab.pendingScrollTop > 0) {
       viewerEl.value.scrollTop = tab.pendingScrollTop;
     } else {
@@ -431,6 +490,7 @@ async function createNewFile() {
     tab.headings = [];
     tab.pendingHash = "";
     tab.pendingScrollTop = 0;
+    tab.pendingSourceLine = 0;
     tab.scrollTop = 0;
     pushRecent(path);
     activateTab(tab.id);
@@ -496,7 +556,16 @@ function closeFolder() {
   clearRoot();
 }
 
-async function restoreTabs() {
+async function getInitialOpenFile(): Promise<string> {
+  try {
+    const path = await invoke<string | null>("initial_open_file");
+    return typeof path === "string" ? path : "";
+  } catch {
+    return "";
+  }
+}
+
+async function restoreTabs(initialPath = "") {
   const persisted = loadPersisted();
   let paths: string[] = [];
   let activePath = "";
@@ -524,6 +593,7 @@ async function restoreTabs() {
   }
   if (!activeId && tabs.value.length) activeId = tabs.value[0].id;
   if (activeId) activateTab(activeId);
+  if (initialPath) await loadFile(initialPath);
 }
 
 function toggleTheme() {
@@ -655,7 +725,11 @@ function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") onDialogCancel();
     return;
   }
-  if (mod && e.key.toLowerCase() === "n") {
+  if (e.defaultPrevented) return;
+  if (mod && (e.key === "/" || e.code === "Slash")) {
+    e.preventDefault();
+    toggleEditorMode();
+  } else if (mod && e.key.toLowerCase() === "n") {
     e.preventDefault();
     void createNewFile();
   } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
@@ -761,7 +835,8 @@ onMounted(async () => {
     console.warn("close listener unavailable", e);
   }
 
-  await restoreTabs();
+  const initialPath = await getInitialOpenFile();
+  await restoreTabs(initialPath);
   try {
     const webview = getCurrentWebview();
     unlistenDrop = await webview.onDragDropEvent(async (event) => {
@@ -836,7 +911,7 @@ watch(exportToast, (v) => {
         class="btn"
         @click="toggleEditorMode"
         :disabled="!hasActiveFile"
-        :title="isEditing ? t('editor.preview') : t('editor.edit')"
+        :title="(isEditing ? t('editor.preview') : t('editor.edit')) + ' (Ctrl+/)'"
       >
         {{ isEditing ? t("editor.preview") : t("editor.edit") }}
         <svg v-if="isEditing" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>
@@ -1055,6 +1130,7 @@ watch(exportToast, (v) => {
           :model-value="draftContent"
           :theme="theme"
           @update:model-value="onDraftUpdate"
+          @toggle-mode="toggleEditorMode"
         />
         <MarkdownView
           v-else

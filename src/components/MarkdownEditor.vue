@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { basicSetup } from "codemirror";
-import { Compartment, EditorState, type Extension } from "@codemirror/state";
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  type ChangeSpec,
+  type Extension,
+  type SelectionRange,
+} from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
@@ -24,6 +32,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
   (e: "ready"): void;
+  (e: "toggle-mode"): void;
 }>();
 
 const host = ref<HTMLElement | null>(null);
@@ -194,24 +203,52 @@ function createEditor() {
         markdown(),
         search({ top: true }),
         replacePanelTheme,
-        keymap.of([
-          indentWithTab,
-          {
-            key: "Mod-f",
-            run: () => {
-              openSearch();
-              return true;
+        Prec.highest(
+          keymap.of([
+            {
+              key: "Mod-l",
+              run: () => wrapSelection("<mark>", "</mark>"),
             },
-          },
-          {
-            key: "Mod-h",
-            run: () => {
-              openReplace();
-              return true;
+            {
+              key: "Mod-b",
+              run: () => wrapSelection("**"),
             },
-          },
-          ...searchKeymap,
-        ]),
+            {
+              key: "Mod-i",
+              run: () => wrapSelection("*"),
+            },
+            {
+              key: "Mod-u",
+              run: () => wrapSelection("<u>", "</u>"),
+            },
+            {
+              key: "Mod-Shift-`",
+              run: () => wrapSelection("`"),
+            },
+            {
+              key: "Mod-/",
+              run: () => {
+                emit("toggle-mode");
+                return true;
+              },
+            },
+            {
+              key: "Mod-f",
+              run: () => {
+                openSearch();
+                return true;
+              },
+            },
+            {
+              key: "Mod-h",
+              run: () => {
+                openReplace();
+                return true;
+              },
+            },
+          ])
+        ),
+        keymap.of([indentWithTab, ...searchKeymap]),
         themeCompartment.of(themeExtension()),
         editableCompartment.of(editableExtension()),
         EditorView.lineWrapping,
@@ -239,6 +276,51 @@ function replaceDoc(value: string) {
       insert: value,
     },
   });
+}
+
+function wrapSelection(prefix: string, suffix = prefix) {
+  if (!view) return false;
+  const state = view.state;
+  const changes: ChangeSpec[] = [];
+  const ranges: SelectionRange[] = [];
+  let offset = 0;
+  for (const range of state.selection.ranges) {
+    const selected = state.sliceDoc(range.from, range.to);
+    const insert = `${prefix}${selected}${suffix}`;
+    changes.push({ from: range.from, to: range.to, insert });
+    const from = range.from + offset + prefix.length;
+    const to = from + selected.length;
+    ranges.push(
+      selected ? EditorSelection.range(from, to) : EditorSelection.cursor(from)
+    );
+    offset += prefix.length + suffix.length;
+  }
+  view.dispatch({
+    changes,
+    selection: EditorSelection.create(ranges),
+    scrollIntoView: true,
+    userEvent: "input",
+  });
+  view.focus();
+  return true;
+}
+
+function getTopVisibleLine(): number {
+  if (!view) return 1;
+  const scroller = view.scrollDOM;
+  const block = view.lineBlockAtHeight(scroller.scrollTop);
+  return view.state.doc.lineAt(block.from).number;
+}
+
+function scrollToLine(line: number) {
+  if (!view) return;
+  const target = Math.min(Math.max(1, line), view.state.doc.lines);
+  const pos = view.state.doc.line(target).from;
+  view.dispatch({
+    selection: { anchor: pos },
+    effects: EditorView.scrollIntoView(pos, { y: "start" }),
+  });
+  view.focus();
 }
 
 function focus() {
@@ -295,7 +377,14 @@ watch(
   }
 );
 
-defineExpose({ focus, openSearch, openReplace, goToLine });
+defineExpose({
+  focus,
+  openSearch,
+  openReplace,
+  goToLine,
+  getTopVisibleLine,
+  scrollToLine,
+});
 </script>
 
 <template>

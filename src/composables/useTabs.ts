@@ -14,6 +14,7 @@ export interface Tab {
   scrollTop: number;
   pendingHash: string;
   pendingScrollTop: number;
+  pendingSourceLine: number;
 }
 
 interface PersistedTabs {
@@ -58,6 +59,7 @@ function createTab(path: string): Tab {
     scrollTop: 0,
     pendingHash: "",
     pendingScrollTop: 0,
+    pendingSourceLine: 0,
   };
 }
 

@@ -14,7 +14,8 @@ const enUS = {
     emptyTitle: "MD Reader",
     emptyHint:
       'Click "File" or "Folder" to get started\nYou can also drag a .md file into this window',
-    shortcutHint: "Ctrl+N New · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
+    shortcutHint:
+      "Ctrl+N New · Ctrl+/ Preview/Edit · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
     toggleSidebar: "Toggle sidebar",
     toggleToc: "Toggle outline",
     toggleTheme: "Toggle theme",
@@ -60,6 +61,14 @@ const enUS = {
     serif: "Serif",
     mono: "Mono",
     reset: "Reset",
+    fileAssociation: "File association",
+    fileAssociationHint:
+      "Register MD Reader in the current Windows user's .md / .markdown / .mdx Open With list.",
+    registerAssociation: "Register association",
+    registering: "Registering…",
+    associationSuccess:
+      "File associations registered. If the context menu does not refresh immediately, reopen Explorer or restart once.",
+    associationFailed: "Failed to register file associations",
     done: "Done",
   },
   export: {

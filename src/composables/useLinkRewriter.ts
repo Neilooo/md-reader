@@ -47,6 +47,7 @@ export function rewriteImagesAndLinks(
   ctx: RewriteContext,
   onInternalLink: (path: string, hash: string) => void
 ): void {
+  wrapTables(container);
   if (!ctx.currentFile) return;
   const baseDir = dirname(ctx.currentFile);
 
@@ -95,5 +96,15 @@ export function rewriteImagesAndLinks(
       onInternalLink(abs, hash);
     });
     a.classList.add("internal-link");
+  });
+}
+
+function wrapTables(container: HTMLElement): void {
+  container.querySelectorAll("table").forEach((table) => {
+    if (table.parentElement?.classList.contains("table-wrap")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.appendChild(table);
   });
 }

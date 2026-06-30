@@ -7,8 +7,8 @@ use notify_debouncer_mini::notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
 
-mod pdf_utils;
 mod pdf_export;
+mod pdf_utils;
 
 use pdf_utils::{current_millis, strip_windows_extended_prefix};
 
@@ -259,6 +259,173 @@ fn search_in_files(
     Ok(results)
 }
 
+#[cfg(target_os = "windows")]
+fn hidden_command(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+#[cfg(target_os = "windows")]
+fn reg_add(args: Vec<String>) -> Result<(), String> {
+    let output = hidden_command("reg")
+        .args(args)
+        .output()
+        .map_err(|e| format!("Failed to run reg.exe: {}", e))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Err(if stderr.is_empty() { stdout } else { stderr })
+}
+
+#[cfg(target_os = "windows")]
+fn notify_shell_assoc_changed() {
+    let _ = hidden_command("ie4uinit.exe").arg("-show").output();
+}
+
+#[cfg(target_os = "windows")]
+fn register_windows_file_associations() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_path = strip_windows_extended_prefix(exe.to_string_lossy().to_string());
+    let open_command = format!("\"{}\" \"%1\"", exe_path);
+    let icon = format!("\"{}\",0", exe_path);
+    let prog_id = "MDReader.Markdown";
+    let app_key = r"HKCU\Software\Classes\Applications\md-reader.exe";
+
+    reg_add(vec![
+        "add".into(),
+        format!(r"HKCU\Software\Classes\{}", prog_id),
+        "/ve".into(),
+        "/d".into(),
+        "Markdown Document".into(),
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        format!(r"HKCU\Software\Classes\{}", prog_id),
+        "/v".into(),
+        "FriendlyTypeName".into(),
+        "/d".into(),
+        "Markdown Document".into(),
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        format!(r"HKCU\Software\Classes\{}\DefaultIcon", prog_id),
+        "/ve".into(),
+        "/d".into(),
+        icon,
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        format!(r"HKCU\Software\Classes\{}\shell", prog_id),
+        "/ve".into(),
+        "/d".into(),
+        "open".into(),
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        format!(r"HKCU\Software\Classes\{}\shell\open\command", prog_id),
+        "/ve".into(),
+        "/d".into(),
+        open_command.clone(),
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        app_key.into(),
+        "/v".into(),
+        "FriendlyAppName".into(),
+        "/d".into(),
+        "MD Reader".into(),
+        "/f".into(),
+    ])?;
+    reg_add(vec![
+        "add".into(),
+        format!(r"{}\shell\open\command", app_key),
+        "/ve".into(),
+        "/d".into(),
+        open_command,
+        "/f".into(),
+    ])?;
+
+    for (ext, content_type) in [
+        ("md", "text/markdown"),
+        ("markdown", "text/markdown"),
+        ("mdx", "text/mdx"),
+    ] {
+        let ext_name = format!(".{}", ext);
+        let ext_key = format!(r"HKCU\Software\Classes\{}", ext_name);
+        reg_add(vec![
+            "add".into(),
+            ext_key.clone(),
+            "/ve".into(),
+            "/d".into(),
+            prog_id.into(),
+            "/f".into(),
+        ])?;
+        reg_add(vec![
+            "add".into(),
+            ext_key.clone(),
+            "/v".into(),
+            "Content Type".into(),
+            "/d".into(),
+            content_type.into(),
+            "/f".into(),
+        ])?;
+        reg_add(vec![
+            "add".into(),
+            format!(r"{}\OpenWithProgids", ext_key),
+            "/v".into(),
+            prog_id.into(),
+            "/t".into(),
+            "REG_SZ".into(),
+            "/d".into(),
+            "".into(),
+            "/f".into(),
+        ])?;
+        reg_add(vec![
+            "add".into(),
+            format!(r"{}\OpenWithList\md-reader.exe", ext_key),
+            "/ve".into(),
+            "/d".into(),
+            "".into(),
+            "/f".into(),
+        ])?;
+        reg_add(vec![
+            "add".into(),
+            format!(r"{}\SupportedTypes", app_key),
+            "/v".into(),
+            ext_name,
+            "/t".into(),
+            "REG_SZ".into(),
+            "/d".into(),
+            "".into(),
+            "/f".into(),
+        ])?;
+    }
+
+    notify_shell_assoc_changed();
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn register_file_associations() -> Result<(), String> {
+    register_windows_file_associations()
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn register_file_associations() -> Result<(), String> {
+    Err("File association registration is only supported on Windows".into())
+}
 
 #[tauri::command]
 fn set_app_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
@@ -273,6 +440,12 @@ fn set_app_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), Stri
     apply_windows_frame_theme(&window, is_dark);
     Ok(())
 }
+#[tauri::command]
+fn initial_open_file() -> Option<String> {
+    let argv: Vec<String> = std::env::args().collect();
+    extract_md_path_from_args(&argv)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -290,21 +463,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            use tauri::{Emitter, Manager};
+            use tauri::Manager;
             app.manage(WatcherState::default());
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_theme(None);
                 apply_windows_frame_theme(&window, false);
-            }
-            // Pass the initial argv path (if any) to the frontend after it's ready.
-            let argv: Vec<String> = std::env::args().collect();
-            if let Some(path) = extract_md_path_from_args(&argv) {
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    // Wait a moment for the frontend to register the listener.
-                    std::thread::sleep(std::time::Duration::from_millis(800));
-                    let _ = handle.emit("md-reader://open-file", path);
-                });
             }
             let _ = app;
             Ok(())
@@ -314,6 +477,8 @@ pub fn run() {
             start_watch,
             stop_watch,
             search_in_files,
+            initial_open_file,
+            register_file_associations,
             set_app_theme,
             check_pandoc,
             export_with_pandoc,

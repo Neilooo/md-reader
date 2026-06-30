@@ -15,7 +15,7 @@ h1, h2, h3, h4, h5, h6 { font-weight: 600; line-height: 1.3; margin: 1.5em 0 0.6
 h1 { font-size: 2em; border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }
 h2 { font-size: 1.5em; border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }
 h3 { font-size: 1.25em; } h4 { font-size: 1em; }
-p, ul, ol, blockquote, pre, table { margin: 0 0 1em; }
+p, ul, ol, blockquote, pre { margin: 0 0 1em; }
 ul, ol { padding-left: 1.8em; }
 a { color: #0969da; text-decoration: none; }
 img { max-width: 100%; height: auto; }
@@ -24,7 +24,8 @@ code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 4px; font-size:
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 pre { background: #f6f8fa; padding: 14px 16px; border-radius: 6px; overflow: auto; }
 pre code { background: transparent; padding: 0; }
-table { border-collapse: collapse; width: 100%; }
+.table-wrap { overflow-x: auto; margin: 0 0 1em; }
+table { border-collapse: collapse; width: 100%; display: table; }
 th, td { border: 1px solid #d0d7de; padding: 6px 12px; }
 tr:nth-child(2n) td { background: #f6f8fa; }
 hr { border: 0; border-top: 1px solid #d0d7de; margin: 2em 0; }

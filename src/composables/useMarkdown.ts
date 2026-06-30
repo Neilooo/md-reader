@@ -52,6 +52,14 @@ md.use(taskLists, { enabled: true, label: true });
 md.use(emoji);
 md.use(mathPlugin);
 
+md.core.ruler.push("source_line_attrs", (state) => {
+  for (const token of state.tokens) {
+    if (token.nesting === 1 && token.map) {
+      token.attrSet("data-source-line", String(token.map[0] + 1));
+    }
+  }
+});
+
 const defaultLinkOpen =
   md.renderer.rules.link_open ||
   function (
@@ -107,7 +115,7 @@ export function extractHeadings(source: string): Heading[] {
 export function renderMarkdown(source: string): string {
   const raw = md.render(source);
   return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ["target", "data-math"],
+    ADD_ATTR: ["target", "data-math", "data-source-line"],
   });
 }
 
