@@ -51,9 +51,23 @@ function clearRecent() {
   localStorage.setItem(STORAGE_RECENT, "[]");
 }
 
+const MAX_SCROLL_ENTRIES = 100;
+
 function saveScroll(path: string, top: number) {
   if (!path) return;
   scrollMap.value[path] = top;
+  // Evict oldest entries if over the limit
+  const keys = Object.keys(scrollMap.value);
+  if (keys.length > MAX_SCROLL_ENTRIES) {
+    const recentPaths = new Set(recent.value.map((r) => r.path));
+    // Remove entries not in recent list first
+    for (const k of keys) {
+      if (!recentPaths.has(k)) {
+        delete scrollMap.value[k];
+        if (Object.keys(scrollMap.value).length <= MAX_SCROLL_ENTRIES) break;
+      }
+    }
+  }
   localStorage.setItem(STORAGE_SCROLL, JSON.stringify(scrollMap.value));
 }
 

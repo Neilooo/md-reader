@@ -54,7 +54,58 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
+function isPrivateUrl(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return true;
+  }
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  // Named hosts that resolve to or serve loopback / link-local traffic.
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+    return true;
+  }
+
+  // IPv4 literals — normalize by stripping any leading zeros so that
+  // "0177.0.0.1" / "127.00.0.1" can't sneak past a string match.
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const oct = (s: string) => parseInt(s, 10);
+    if (v4.slice(1).some((s) => oct(s) > 255)) return true;
+    const first = oct(v4[1]);
+    // Reject decimal/octal-ambiguous forms by also checking the raw octets.
+    if (first === 0 || first === 127) return true; // 0.x and 127.x (loopback)
+    if (first === 10) return true; // 10.0.0.0/8
+    if (first === 192 && oct(v4[2]) === 168) return true; // 192.168.0.0/16
+    if (first === 172 && oct(v4[2]) >= 16 && oct(v4[2]) <= 31) return true; // 172.16.0.0/12
+    if (first === 169 && oct(v4[2]) === 254) return true; // 169.254.0.0/16 (link-local)
+    if (first === 100 && oct(v4[2]) >= 64 && oct(v4[2]) <= 127) return true; // 100.64.0.0/10 (CGNAT)
+    return false;
+  }
+
+  // IPv6 literals.
+  if (host.includes(":")) {
+    if (
+      host === "::" ||
+      host === "::1" ||
+      host === "0:0:0:0:0:0:0:0" ||
+      host === "0:0:0:0:0:0:0:1" ||
+      host.startsWith("fe80:") || // link-local
+      host.startsWith("fc") || // unique local
+      host.startsWith("fd")
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
 async function fetchAsDataUrl(url: string): Promise<string | null> {
+  if (isPrivateUrl(url)) return null;
   try {
     const r = await fetch(url);
     if (!r.ok) return null;

@@ -734,13 +734,15 @@ onMounted(async () => {
 
   // Listen for file-open events fired by Rust (file association / single-instance).
   try {
-    const { listen } = await import("@tauri-apps/api/event");
+    const { listen, emit } = await import("@tauri-apps/api/event");
     unlistenOpen = await listen<string>("md-reader://open-file", async (e) => {
       const path = e.payload;
       if (typeof path === "string" && path) {
         await loadFile(path);
       }
     });
+    // Signal the backend that the frontend is ready to receive events.
+    await emit("md-reader://frontend-ready", null);
   } catch (e) {
     console.warn("listen open-file unavailable", e);
   }

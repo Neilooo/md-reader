@@ -300,10 +300,33 @@ pub fn run() {
             let argv: Vec<String> = std::env::args().collect();
             if let Some(path) = extract_md_path_from_args(&argv) {
                 let handle = app.handle().clone();
+                let fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+                // Fallback: if the frontend never signals ready (slow load or
+                // an error during mount), emit after a grace period so the
+                // initial file is not silently dropped.
+                let handle_fallback = handle.clone();
+                let path_fallback = path.clone();
+                let fired_fallback = fired.clone();
                 std::thread::spawn(move || {
-                    // Wait a moment for the frontend to register the listener.
-                    std::thread::sleep(std::time::Duration::from_millis(800));
-                    let _ = handle.emit("md-reader://open-file", path);
+                    std::thread::sleep(Duration::from_millis(1500));
+                    if fired_fallback.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    let _ = handle_fallback.emit("md-reader://open-file", path_fallback);
+                });
+
+                // Emit once the frontend signals ready. `once` auto-unregisters
+                // after the first fire, so this listener never leaks. The `fired`
+                // guard ensures the file opens exactly once even if the fallback
+                // thread races ahead.
+                let fired_listen = fired.clone();
+                let handle_listen = handle.clone();
+                handle.once("md-reader://frontend-ready", move |_| {
+                    if fired_listen.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    let _ = handle_listen.emit("md-reader://open-file", path);
                 });
             }
             let _ = app;

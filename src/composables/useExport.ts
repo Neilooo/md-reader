@@ -6,6 +6,11 @@ import hljsDark from "highlight.js/styles/github-dark.css?raw";
 import katexCss from "katex/dist/katex.min.css?raw";
 import { EXPORT_BASE_CSS } from "./exportStyles";
 import { inlineImages, ensureSvgNamespace } from "./exportInline";
+import { i18n } from "../i18n";
+
+function t(key: string): string {
+  return i18n.global.t(key);
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -66,7 +71,7 @@ export async function exportToHtml(
   baseName: string
 ): Promise<string | null> {
   const dest = await save({
-    title: "导出为 HTML",
+    title: t("export.dialogHtml"),
     defaultPath: baseName.replace(/\.[^.]+$/, "") + ".html",
     filters: [{ name: "HTML", extensions: ["html", "htm"] }],
   });
@@ -94,7 +99,7 @@ async function pandocExport(
   prettyName: string
 ): Promise<string | null> {
   const dest = await save({
-    title: `导出为 ${ext.toUpperCase()}`,
+    title: t("export.dialogDocx"),
     defaultPath: baseName.replace(/\.[^.]+$/, "") + "." + ext,
     filters: [{ name: prettyName, extensions: [ext] }],
   });
@@ -110,7 +115,7 @@ export function exportToDocx(
   baseName: string,
   title: string
 ) {
-  return pandocExport(body, baseName, title, "docx", "Word 文档");
+  return pandocExport(body, baseName, title, "docx", t("export.wordDocument"));
 }
 
 export interface PdfExportResult {
@@ -164,7 +169,7 @@ export async function exportToPdf(
   onPickEdge: () => Promise<string | null>
 ): Promise<PdfExportResult | null> {
   const dest = await save({
-    title: "导出为 PDF",
+    title: t("export.dialogPdf"),
     defaultPath: baseName.replace(/\.[^.]+$/, "") + ".pdf",
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
@@ -187,11 +192,14 @@ export async function exportToPdf(
 
 export function printDocument(body: HTMLElement, title: string) {
   void buildExportHtml(body, title, { forceLight: true }).then((html) => {
-    const w = window.open("", "_blank", "width=900,height=1200");
-    if (!w) return;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank", "width=900,height=1200");
+    if (!w) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    w.addEventListener("afterprint", () => URL.revokeObjectURL(url));
     w.focus();
     setTimeout(() => w.print(), 400);
   });

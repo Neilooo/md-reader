@@ -74,7 +74,17 @@ function highlight(text: string, q: string): string {
   const flags = caseSensitive.value ? "g" : "gi";
   const escQ = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(escQ, flags);
-  return escapeHtml(text).replace(re, (m) => `<mark>${escapeHtml(m)}</mark>`);
+  // Split on matches, escape each segment, wrap matches in <mark>
+  const parts: string[] = [];
+  let last = 0;
+  text.replace(re, (m, offset) => {
+    parts.push(escapeHtml(text.slice(last, offset)));
+    parts.push(`<mark>${escapeHtml(m)}</mark>`);
+    last = offset + m.length;
+    return m;
+  });
+  parts.push(escapeHtml(text.slice(last)));
+  return parts.join("");
 }
 
 function escapeHtml(s: string): string {

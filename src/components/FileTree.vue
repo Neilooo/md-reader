@@ -21,7 +21,7 @@ function toggle(key: string) {
 
 <template>
   <ul class="tree" :class="{ root: !depth }">
-    <li v-for="node in nodes" :key="node.path || node.name" class="tree-item">
+    <li v-for="(node, idx) in nodes" :key="node.path || `${node.name}:${depth || 0}:${idx}`" class="tree-item">
       <template v-if="node.isDir">
         <div
           class="row dir"

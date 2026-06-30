@@ -191,12 +191,13 @@ export async function renderMermaid(
     const id = `mermaid-${Date.now()}-${mermaidIdCounter++}`;
     try {
       const { svg } = await mermaid.render(id, code);
-      el.innerHTML = svg;
+      el.innerHTML = DOMPurify.sanitize(svg, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+        ADD_TAGS: ["foreignObject"],
+      });
       el.classList.add("mermaid-rendered");
     } catch (e: any) {
-      el.innerHTML = `<pre class="mermaid-error">Mermaid: ${String(
-        e?.message ?? e
-      )}</pre>`;
+      el.textContent = `Mermaid: ${String(e?.message ?? e)}`;
       el.classList.add("mermaid-rendered");
     }
   }

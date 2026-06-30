@@ -84,6 +84,10 @@ const enUS = {
     edgeChrome: "Edge / Chrome",
     pdfFailed: "Failed to export PDF",
     docxFailed: "Failed to export DOCX",
+    dialogHtml: "Export as HTML",
+    dialogPdf: "Export as PDF",
+    dialogDocx: "Export as DOCX",
+    wordDocument: "Word document",
   },
   editor: {
     edit: "Edit",

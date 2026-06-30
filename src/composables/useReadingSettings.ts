@@ -1,4 +1,5 @@
 import { ref, computed } from "vue";
+import { i18n } from "../i18n";
 
 export interface ReadingSettings {
   fontSize: number;
@@ -7,12 +8,7 @@ export interface ReadingSettings {
   fontFamily: string;
 }
 
-const FONT_OPTIONS = [
-  { label: "系统默认", value: "system" },
-  { label: "无衬线", value: "sans" },
-  { label: "衬线", value: "serif" },
-  { label: "等宽", value: "mono" },
-];
+const FONT_KEYS = ["system", "sans", "serif", "mono"] as const;
 
 const FONT_STACKS: Record<string, string> = {
   system:
@@ -89,7 +85,12 @@ function reset() {
   save();
 }
 
-const fontOptions = computed(() => FONT_OPTIONS);
+const fontOptions = computed(() =>
+  FONT_KEYS.map((key) => ({
+    label: i18n.global.t(`settings.${key}`),
+    value: key,
+  }))
+);
 
 export function useReadingSettings() {
   return {

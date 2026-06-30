@@ -81,6 +81,10 @@ const zhCN = {
     edgeChrome: "Edge / Chrome",
     pdfFailed: "导出 PDF 失败",
     docxFailed: "导出 DOCX 失败",
+    dialogHtml: "导出为 HTML",
+    dialogPdf: "导出为 PDF",
+    dialogDocx: "导出为 DOCX",
+    wordDocument: "Word 文档",
   },
   editor: {
     edit: "编辑",

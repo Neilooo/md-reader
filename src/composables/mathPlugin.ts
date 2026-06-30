@@ -26,7 +26,7 @@ export default function mathPlugin(mdInstance: MarkdownIt): void {
     }
     if (pos >= max) return false;
     const content = state.src.slice(start + 1, pos);
-    if (!content || /^\s$/.test(content)) return false;
+    if (!content || /^\s+$/.test(content)) return false;
     if (!silent) {
       const token = state.push("math_inline", "math", 0);
       token.markup = "$";
