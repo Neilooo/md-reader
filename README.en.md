@@ -84,6 +84,12 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 | `Ctrl+P` | System print / Save as PDF |
 | `Esc` | Close find/settings/dialogs |
 
+## Screenshots
+
+![image-20260701093258687](./screenshot/image-20260701093258687.png)
+
+![image-20260701093345426](./screenshot/image-20260701093345426.png)
+
 ## Installation
 
 ### Windows (official)
