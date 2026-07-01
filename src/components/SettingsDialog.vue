@@ -1,13 +1,124 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
+
+const RELEASE_API = "https://api.github.com/repos/Neilooo/md-reader/releases/latest";
+const RELEASE_LATEST_URL = "https://github.com/Neilooo/md-reader/releases/latest";
+
+type UpdateStatus = "idle" | "checking" | "latest" | "available" | "error";
+
+interface LatestRelease {
+  tag_name?: string;
+  html_url?: string;
+}
 
 const { t } = useI18n();
 const associationBusy = ref(false);
 const associationStatus = ref<"" | "success" | "error">("");
 const associationMessage = ref("");
+const currentVersion = ref("");
+const updateStatus = ref<UpdateStatus>("idle");
+const updateMessage = ref("");
+const latestVersion = ref("");
+const latestReleaseUrl = ref(RELEASE_LATEST_URL);
+const updateBusy = computed(() => updateStatus.value === "checking");
+const updateStatusClass = computed(() => ({
+  success: updateStatus.value === "available" || updateStatus.value === "latest",
+  error: updateStatus.value === "error",
+}));
+
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, "");
+}
+
+function parseVersion(version: string) {
+  const [core, pre = ""] = normalizeVersion(version).split("-", 2);
+  const nums = core.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  return {
+    major: nums[0] ?? 0,
+    minor: nums[1] ?? 0,
+    patch: nums[2] ?? 0,
+    pre,
+  };
+}
+
+function compareVersions(a: string, b: string): number {
+  const av = parseVersion(a);
+  const bv = parseVersion(b);
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (av[key] > bv[key]) return 1;
+    if (av[key] < bv[key]) return -1;
+  }
+  if (av.pre === bv.pre) return 0;
+  if (!av.pre) return 1;
+  if (!bv.pre) return -1;
+  return av.pre.localeCompare(bv.pre, undefined, { numeric: true });
+}
+
+async function loadCurrentVersion() {
+  try {
+    currentVersion.value = await getVersion();
+  } catch {
+    currentVersion.value = "";
+  }
+}
+
+async function fetchLatestRelease(): Promise<LatestRelease> {
+  const controller = new globalThis.AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(RELEASE_API, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as LatestRelease;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function checkForUpdates() {
+  updateStatus.value = "checking";
+  updateMessage.value = "";
+  try {
+    if (!currentVersion.value) await loadCurrentVersion();
+    if (!currentVersion.value) throw new Error(t("settings.versionUnavailable"));
+
+    const release = await fetchLatestRelease();
+    const remoteTag = release.tag_name || "";
+    if (!remoteTag) throw new Error("Missing tag_name");
+
+    latestVersion.value = normalizeVersion(remoteTag);
+    latestReleaseUrl.value = release.html_url || RELEASE_LATEST_URL;
+
+    if (compareVersions(latestVersion.value, currentVersion.value) > 0) {
+      updateStatus.value = "available";
+      updateMessage.value = t("settings.updateAvailable", {
+        version: latestVersion.value,
+      });
+    } else {
+      updateStatus.value = "latest";
+      updateMessage.value = t("settings.upToDate", {
+        version: currentVersion.value,
+      });
+    }
+  } catch (e: unknown) {
+    updateStatus.value = "error";
+    updateMessage.value = `${t("settings.updateCheckFailed")}: ${e instanceof Error ? e.message : String(e)}`;
+    latestReleaseUrl.value = RELEASE_LATEST_URL;
+  }
+}
+
+async function openReleasePage() {
+  await openUrl(latestReleaseUrl.value || RELEASE_LATEST_URL);
+}
+
+onMounted(loadCurrentVersion);
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
@@ -100,6 +211,34 @@ async function registerAssociations() {
             {{ opt.label }}
           </option>
         </select>
+      </div>
+
+      <div class="association">
+        <div>
+          <div class="association-title">{{ t("settings.updateCheck") }}</div>
+          <div class="association-hint">
+            {{ t("settings.currentVersion", { version: currentVersion || "-" }) }}
+          </div>
+          <div
+            v-if="updateMessage"
+            class="association-status"
+            :class="updateStatusClass"
+          >
+            {{ updateMessage }}
+          </div>
+        </div>
+        <div class="update-actions">
+          <button class="btn" :disabled="updateBusy" @click="checkForUpdates">
+            {{ updateBusy ? t("settings.checkingUpdate") : t("settings.checkUpdate") }}
+          </button>
+          <button
+            v-if="updateStatus === 'available' || updateStatus === 'error'"
+            class="btn primary"
+            @click="openReleasePage"
+          >
+            {{ t("settings.openReleasePage") }}
+          </button>
+        </div>
       </div>
 
       <div class="association">
@@ -216,6 +355,11 @@ select {
 }
 .association-status.error {
   color: #c00;
+}
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .footer {
   margin-top: 18px;

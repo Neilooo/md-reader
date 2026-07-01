@@ -9,6 +9,7 @@
     "core:webview:allow-internal-toggle-devtools",
     "dialog:default",
     "fs:default",
+    "opener:default",
     "fs:allow-read-text-file",
     "fs:allow-read-file",
     "fs:allow-write-text-file",

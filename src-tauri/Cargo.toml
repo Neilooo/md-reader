@@ -1,6 +1,6 @@
 [package]
 name = "md-reader"
-version = "0.2.2"
+version = "0.2.3"
 description = "A lightweight, fast, WYSIWYG Markdown desktop reader"
 authors = ["Neilooo"]
 license = "MIT"
@@ -20,6 +20,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 window-vibrancy = "0.6"
 serde = { version = "1", features = ["derive"] }
