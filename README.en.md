@@ -25,15 +25,17 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 
 ### Reading
 - CommonMark + GitHub Flavored Markdown
+- YAML Front Matter parsing & preview: top `---` metadata renders as an info card, body and outline strip the metadata
 - Syntax highlighting with highlight.js (30+ languages)
 - Math formulas with KaTeX (lazy-loaded)
-- Diagrams / sequence / mindmap with Mermaid (lazy-loaded)
+- Diagrams / sequence / mindmap with Mermaid (lazy-loaded, SVG sanitized via DOMPurify)
 - Task lists, footnotes, emoji, heading anchors
 - Light / dark theme with persisted preference
 
 ### Editing
 - CodeMirror source editing mode with Markdown highlighting, line numbers, folding, bracket matching, find/replace, and go to line
-- One-click preview / edit switch; unsaved drafts can be previewed before saving
+- One-click preview / edit switch (`Ctrl+/`), with viewport synced by source line on toggle
+- Markdown formatting shortcuts: `Ctrl+B` bold, `Ctrl+I` italic, `Ctrl+U` underline, `Ctrl+L` highlight, `` Ctrl+Shift+` `` inline code
 - Manual save / save as with unsaved-change protection for tab switches, tab close, window close, and external file changes
 
 ### Navigation
@@ -56,7 +58,7 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 - Reading settings: font size, line height, width, font family
 - File watching with auto refresh
 - Recent files and per-file scroll position restore
-- File association for `.md / .markdown / .mdx`
+- File association for `.md / .markdown / .mdx`; settings page can register per-user file associations (works for the portable build too)
 - Single-instance behavior: opening another file reuses the existing window
 - Drag and drop files into the window
 - UI language switch: Chinese / English
@@ -65,10 +67,17 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 
 | Shortcut | Action |
 |---|---|
+| `Ctrl+/` | Toggle preview / edit mode |
+| `Ctrl+B` | Bold (edit mode) |
+| `Ctrl+I` | Italic (edit mode) |
+| `Ctrl+U` | Underline (edit mode) |
+| `Ctrl+L` | Highlight (edit mode) |
+| `` Ctrl+Shift+` `` | Inline code (edit mode) |
 | `Ctrl+F` | Find in current document; editor search in edit mode |
 | `Ctrl+H` | Replace in edit mode |
 | `Ctrl+G` | Go to line in edit mode |
 | `Ctrl+Shift+F` | Full-text search |
+| `Ctrl+N` | New Markdown file |
 | `Ctrl+,` | Reading settings |
 | `Ctrl+S` | Save current file |
 | `Ctrl+Shift+S` | Save as |
@@ -90,10 +99,10 @@ Download from the [Releases page](https://github.com/Neilooo/md-reader/releases/
 
 ### macOS / Linux (experimental)
 
-macOS and Linux builds are **experimental**, produced via GitHub Actions and not code-signed:
+macOS and Linux builds are **experimental**, produced via GitHub Actions on release tags and attached to the [Releases page](https://github.com/Neilooo/md-reader/releases). They are not code-signed:
 
-1. Go to the repo's **Actions** tab → select the **Experimental builds (macOS / Linux)** workflow → **Run workflow**
-2. After the run finishes, download the artifacts at the bottom of the run page (macOS `.dmg`/`.app`, Linux `.deb`/`.rpm`/`.AppImage`)
+- macOS: download `.dmg` or `.app.tar.gz`
+- Linux: download `.AppImage` / `.deb` / `.rpm`
 
 > Unsigned builds: on macOS, right-click → Open on first launch, or run `xattr -dr com.apple.quarantine "MD Reader.app"`; on Linux, `chmod +x` the AppImage first.
 

@@ -25,15 +25,17 @@
 
 ### 阅读
 - CommonMark + GitHub Flavored Markdown
+- YAML Front Matter 解析与预览：顶部 `---` 元数据渲染为信息卡片，正文和大纲自动剥离元数据
 - 代码语法高亮（highlight.js，30+ 语言）
 - 数学公式（KaTeX，按需加载）
-- 流程图 / 时序图 / 思维导图（Mermaid，按需加载）
+- 流程图 / 时序图 / 思维导图（Mermaid，按需加载，SVG 经 DOMPurify 清理）
 - 任务列表 / 脚注 / Emoji / 标题锚点
 - 亮 / 暗主题切换，记忆主题偏好
 
 ### 编辑
 - CodeMirror 源码编辑模式，支持 Markdown 高亮、行号、折叠、括号匹配、查找/替换、跳转行
-- 预览 / 编辑一键切换，未保存内容可直接切回预览查看效果
+- 预览 / 编辑一键切换（`Ctrl+/`），切换时按源码行同步视口位置
+- Markdown 格式化快捷键：`Ctrl+B` 加粗、`Ctrl+I` 斜体、`Ctrl+U` 下划线、`Ctrl+L` 高亮、`` Ctrl+Shift+` `` 行内代码
 - 手动保存 / 另存为，切换文件、关闭标签、关闭窗口和外部变更时保护未保存修改
 
 ### 导航
@@ -56,7 +58,7 @@
 - 阅读设置：字号、行高、宽度、字体可调
 - 文件变更监听，自动刷新
 - 最近文件 + 滚动位置记忆
-- 文件关联：`.md / .markdown / .mdx` 双击直接打开
+- 文件关联：`.md / .markdown / .mdx` 双击直接打开；设置页可一键注册当前用户级文件关联（绿色版也可用）
 - 单例运行：从资源管理器多次打开会复用窗口
 - 拖拽文件到窗口直接打开
 - 界面语言切换：简体中文 / English
@@ -65,10 +67,17 @@
 
 | 键 | 动作 |
 |---|---|
+| `Ctrl+/` | 切换预览 / 编辑模式 |
+| `Ctrl+B` | 加粗（编辑模式） |
+| `Ctrl+I` | 斜体（编辑模式） |
+| `Ctrl+U` | 下划线（编辑模式） |
+| `Ctrl+L` | 高亮（编辑模式） |
+| `` Ctrl+Shift+` `` | 行内代码（编辑模式） |
 | `Ctrl+F` | 当前文档查找；编辑模式下打开编辑器查找 |
 | `Ctrl+H` | 编辑模式下替换 |
 | `Ctrl+G` | 编辑模式下跳转行 |
 | `Ctrl+Shift+F` | 全文搜索 |
+| `Ctrl+N` | 新建 Markdown 文件 |
 | `Ctrl+,` | 阅读设置 |
 | `Ctrl+S` | 保存当前文件 |
 | `Ctrl+Shift+S` | 另存为 |
@@ -90,10 +99,10 @@
 
 ### macOS / Linux（实验版）
 
-macOS 和 Linux 构建目前为**实验性**，通过 GitHub Actions 生成，未做代码签名：
+macOS 和 Linux 构建目前为**实验性**，由 GitHub Actions 在发布 tag 时自动构建并附加到 [Releases 页面](https://github.com/Neilooo/md-reader/releases)，未做代码签名：
 
-1. 进入仓库的 **Actions** 标签页 → 选择 **Experimental builds (macOS / Linux)** 工作流 → **Run workflow**
-2. 运行结束后在该次运行页面底部的 **Artifacts** 下载对应产物（macOS `.dmg`/`.app`，Linux `.deb`/`.rpm`/`.AppImage`）
+- macOS：下载 `.dmg` 或 `.app.tar.gz`
+- Linux：下载 `.AppImage` / `.deb` / `.rpm`
 
 > 实验版未签名：macOS 首次打开需右键 → 打开，或执行 `xattr -dr com.apple.quarantine "MD Reader.app"`；Linux AppImage 需先 `chmod +x`。
 
