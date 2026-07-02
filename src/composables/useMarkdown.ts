@@ -224,6 +224,8 @@ function configureMermaid(mermaid: any): void {
     startOnLoad: false,
     theme: isDark ? "dark" : "default",
     securityLevel: "strict",
+    flowchart: { htmlLabels: false },
+    class: { htmlLabels: false },
   });
 }
 
@@ -248,6 +250,34 @@ export async function renderMath(container: HTMLElement): Promise<void> {
       el.textContent = expr;
     }
   });
+}
+
+function sanitizeMermaidSvg(svg: string): string {
+  const doc = new globalThis.DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = doc.documentElement;
+  if (!root || root.nodeName === "parsererror") return "";
+  root.querySelectorAll("script").forEach((n) => n.remove());
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  const toStrip: { el: Element; name: string }[] = [];
+  let current: Node | null = root;
+  while (current) {
+    const el = current as Element;
+    if (el.attributes) {
+      for (const attr of Array.from(el.attributes)) {
+        const name = attr.name.toLowerCase();
+        const value = attr.value.trim().toLowerCase();
+        if (
+          name.startsWith("on") ||
+          ((name === "href" || name === "xlink:href") && value.startsWith("javascript:"))
+        ) {
+          toStrip.push({ el, name: attr.name });
+        }
+      }
+    }
+    current = walker.nextNode();
+  }
+  toStrip.forEach(({ el, name }) => el.removeAttribute(name));
+  return new globalThis.XMLSerializer().serializeToString(root);
 }
 
 let mermaidIdCounter = 0;
@@ -275,9 +305,7 @@ export async function renderMermaid(
     const id = `mermaid-${Date.now()}-${mermaidIdCounter++}`;
     try {
       const { svg } = await mermaid.render(id, code);
-      el.innerHTML = DOMPurify.sanitize(svg, {
-        USE_PROFILES: { svg: true, svgFilters: true },
-      });
+      el.innerHTML = sanitizeMermaidSvg(svg);
       el.classList.add("mermaid-rendered");
     } catch (e: any) {
       const pre = document.createElement("pre");
