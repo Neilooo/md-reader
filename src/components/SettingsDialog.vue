@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
+import { getCachedPandocRefDoc, setCachedPandocRefDoc } from "../composables/useExport";
 
 const RELEASE_API = "https://api.github.com/repos/Neilooo/md-reader/releases/latest";
 const RELEASE_LATEST_URL = "https://github.com/Neilooo/md-reader/releases/latest";
@@ -116,6 +118,24 @@ async function checkForUpdates() {
 
 async function openReleasePage() {
   await openUrl(latestReleaseUrl.value || RELEASE_LATEST_URL);
+}
+
+const pandocRefDoc = ref(getCachedPandocRefDoc() ?? "");
+
+async function pickPandocRefDoc() {
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: "Word Document", extensions: ["docx"] }],
+  });
+  if (typeof selected === "string") {
+    pandocRefDoc.value = selected;
+    setCachedPandocRefDoc(selected);
+  }
+}
+
+function clearPandocRefDoc() {
+  pandocRefDoc.value = "";
+  setCachedPandocRefDoc(null);
 }
 
 onMounted(loadCurrentVersion);
@@ -243,6 +263,26 @@ async function registerAssociations() {
 
       <div class="association">
         <div>
+          <div class="association-title">{{ t("settings.pandocTemplate") }}</div>
+          <div class="association-hint">
+            <span v-if="pandocRefDoc" class="ref-doc-path" :title="pandocRefDoc">
+              {{ pandocRefDoc }}
+            </span>
+            <span v-else>{{ t("settings.pandocTemplateHint") }}</span>
+          </div>
+        </div>
+        <div class="update-actions">
+          <button class="btn" @click="pickPandocRefDoc">
+            {{ t("settings.chooseTemplate") }}
+          </button>
+          <button v-if="pandocRefDoc" class="btn" @click="clearPandocRefDoc">
+            {{ t("settings.clearTemplate") }}
+          </button>
+        </div>
+      </div>
+
+      <div class="association">
+        <div>
           <div class="association-title">{{ t("settings.fileAssociation") }}</div>
           <div class="association-hint">{{ t("settings.fileAssociationHint") }}</div>
           <div
@@ -360,6 +400,16 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.ref-doc-path {
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  direction: rtl;
+  unicode-bidi: plaintext;
 }
 .footer {
   margin-top: 18px;

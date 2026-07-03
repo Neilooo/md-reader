@@ -545,6 +545,7 @@ pub struct ExportOptions {
     pub out_path: String,
     pub format: String,
     pub title: Option<String>,
+    pub reference_doc: Option<String>,
 }
 
 #[tauri::command]
@@ -578,6 +579,16 @@ fn export_with_pandoc(opts: ExportOptions) -> Result<String, String> {
 
     if format == "html" {
         cmd.arg("--embed-resources");
+    }
+
+    if format == "docx" {
+        if let Some(ref_doc) = &opts.reference_doc {
+            let p = PathBuf::from(ref_doc);
+            if !p.exists() {
+                return Err(format!("参考文档不存在: {}", ref_doc));
+            }
+            cmd.arg("--reference-doc").arg(p);
+        }
     }
 
     let output = cmd

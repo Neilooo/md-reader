@@ -91,6 +91,17 @@ export async function checkPandoc(): Promise<PandocInfo> {
   return await invoke<PandocInfo>("check_pandoc");
 }
 
+const PANDOC_REF_DOC_KEY = "md-reader-pandoc-reference-doc";
+
+export function getCachedPandocRefDoc(): string | null {
+  return localStorage.getItem(PANDOC_REF_DOC_KEY);
+}
+
+export function setCachedPandocRefDoc(p: string | null) {
+  if (p) localStorage.setItem(PANDOC_REF_DOC_KEY, p);
+  else localStorage.removeItem(PANDOC_REF_DOC_KEY);
+}
+
 async function pandocExport(
   body: HTMLElement,
   baseName: string,
@@ -106,7 +117,13 @@ async function pandocExport(
   if (!dest) return null;
   const html = await buildExportHtml(body, title, { forceLight: true });
   return await invoke<string>("export_with_pandoc", {
-    opts: { html, outPath: dest, format: ext, title },
+    opts: {
+      html,
+      outPath: dest,
+      format: ext,
+      title,
+      referenceDoc: ext === "docx" ? getCachedPandocRefDoc() ?? undefined : undefined,
+    },
   });
 }
 

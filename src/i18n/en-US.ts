@@ -70,6 +70,11 @@ const enUS = {
     updateCheckFailed: "Failed to check for updates",
     openReleasePage: "Open download page",
     versionUnavailable: "Unable to read current version",
+    pandocTemplate: "Word export template",
+    pandocTemplateHint:
+      "Choose a .docx as reference document to control the font, heading and paragraph styles of exported Word files. Leave empty for pandoc defaults.",
+    chooseTemplate: "Choose template",
+    clearTemplate: "Clear",
     fileAssociation: "File association",
     fileAssociationHint:
       "Register MD Reader in the current Windows user's .md / .markdown / .mdx Open With list.",
