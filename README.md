@@ -9,7 +9,7 @@
 
 一个轻量、快速、所见即所得的 Markdown 桌面阅读器与编辑器，基于 Tauri 2 + Vue 3 + Rust 构建。
 
-体积小（约 5 MB），启动快，支持多标签页、源码编辑、公式、图表、代码高亮、文件树、全文搜索、PDF/HTML/DOCX 导出。
+体积小（约 6 MB），启动快，支持多标签页、源码编辑、公式、图表、代码高亮、文件树、全文搜索、PDF/HTML/DOCX 导出。
 
 📦 **[下载最新版本](https://github.com/Neilooo/md-reader/releases/latest)**
 
@@ -28,7 +28,7 @@
 - YAML Front Matter 解析与预览：顶部 `---` 元数据渲染为信息卡片，正文和大纲自动剥离元数据
 - 代码语法高亮（highlight.js，30+ 语言）
 - 数学公式（KaTeX，按需加载）
-- 流程图 / 时序图 / 思维导图（Mermaid，按需加载，SVG 经 DOMPurify 清理）
+- 流程图 / 时序图 / 思维导图（Mermaid，按需加载，SVG 经 DOM 解析清洗，仅剥除脚本与事件属性）
 - 任务列表 / 脚注 / Emoji / 标题锚点
 - 亮 / 暗主题切换，记忆主题偏好
 
@@ -52,7 +52,7 @@
 ### 导出
 - **PDF**（Edge headless，1-3 秒，所见即所得，无 LaTeX）
 - **HTML**（自包含单文件，图片/CSS 全部内嵌）
-- **DOCX**（pandoc 路线，需安装 pandoc）
+- **DOCX**（pandoc 路线，需安装 pandoc；可设置 Word 模板 `.docx` 通过 `--reference-doc` 控制字体、标题和段落样式）
 
 ### 体验
 - 阅读设置：字号、行高、宽度、字体可调
@@ -62,6 +62,7 @@
 - 单例运行：从资源管理器多次打开会复用窗口
 - 拖拽文件到窗口直接打开
 - 界面语言切换：简体中文 / English
+- 检查更新：设置页可查看当前版本并对比 GitHub Releases 最新版，发现新版本可一键打开下载页
 
 ## 快捷键
 

@@ -9,7 +9,7 @@
 
 A lightweight, fast, WYSIWYG **Markdown viewer / reader / editor** desktop app. Built with **Tauri 2 + Vue 3 + Rust**.
 
-Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX math, Mermaid diagrams, syntax highlighting, file tree, full-text search, and high-fidelity PDF/HTML/DOCX export.
+Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX math, Mermaid diagrams, syntax highlighting, file tree, full-text search, and high-fidelity PDF/HTML/DOCX export.
 
 📦 **[Download the latest release](https://github.com/Neilooo/md-reader/releases/latest)**
 
@@ -28,7 +28,7 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 - YAML Front Matter parsing & preview: top `---` metadata renders as an info card, body and outline strip the metadata
 - Syntax highlighting with highlight.js (30+ languages)
 - Math formulas with KaTeX (lazy-loaded)
-- Diagrams / sequence / mindmap with Mermaid (lazy-loaded, SVG sanitized via DOMPurify)
+- Diagrams / sequence / mindmap with Mermaid (lazy-loaded, SVG sanitized via DOM parsing — strips scripts and event handlers only)
 - Task lists, footnotes, emoji, heading anchors
 - Light / dark theme with persisted preference
 
@@ -52,7 +52,7 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 ### Export
 - **PDF**: Edge headless, 1-3 seconds, WYSIWYG, no LaTeX required
 - **HTML**: self-contained single file with images/CSS embedded
-- **DOCX**: powered by pandoc
+- **DOCX**: powered by pandoc; optionally set a Word template `.docx` via `--reference-doc` to control fonts, headings and paragraph styles
 
 ### Desktop integration
 - Reading settings: font size, line height, width, font family
@@ -62,6 +62,7 @@ Small footprint (~5 MB), fast startup, multi-tab editing, source editing, KaTeX 
 - Single-instance behavior: opening another file reuses the existing window
 - Drag and drop files into the window
 - UI language switch: Chinese / English
+- Check for updates: settings page shows the current version and compares it with the latest GitHub Release, with a one-click link to the download page when a newer version is found
 
 ## Keyboard Shortcuts
 
