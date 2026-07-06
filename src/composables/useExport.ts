@@ -208,24 +208,35 @@ export async function exportToPdf(
 }
 
 export function printDocument(body: HTMLElement, title: string) {
-  void buildExportHtml(body, title, { forceLight: true }).then((html) => {
-    const blob = new globalThis.Blob([html], { type: "text/html" });
-    const url = globalThis.URL.createObjectURL(blob);
-    const w = window.open(url, "_blank", "width=900,height=1200");
-    if (!w) {
-      globalThis.URL.revokeObjectURL(url);
-      return;
-    }
-    let revoked = false;
-    const revoke = () => {
-      if (revoked) return;
-      revoked = true;
-      globalThis.URL.revokeObjectURL(url);
-    };
-    w.addEventListener("afterprint", revoke, { once: true });
-    w.addEventListener("beforeunload", revoke, { once: true });
-    window.setTimeout(revoke, 60000);
-    w.focus();
-    setTimeout(() => w.print(), 400);
-  });
+  buildExportHtml(body, title, { forceLight: true })
+    .then((html) => {
+      const blob = new globalThis.Blob([html], { type: "text/html" });
+      const url = globalThis.URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute(
+        "style",
+        "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;",
+      );
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        globalThis.URL.revokeObjectURL(url);
+        iframe.remove();
+      };
+      iframe.addEventListener("load", () => {
+        const cw = iframe.contentWindow;
+        if (!cw) {
+          cleanup();
+          return;
+        }
+        cw.addEventListener("afterprint", cleanup, { once: true });
+        window.setTimeout(cleanup, 120000);
+        cw.focus();
+        cw.print();
+      });
+      iframe.src = url;
+      document.body.appendChild(iframe);
+    })
+    .catch((e) => console.error("print failed", e));
 }
