@@ -61,7 +61,7 @@ const editorBaseTheme = EditorView.theme({
   ".cm-scroller": {
     fontFamily:
       'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Consolas, monospace',
-    fontSize: "14px",
+    fontSize: "var(--editor-font-size, 14px)",
     lineHeight: "1.65",
   },
   ".cm-content": {

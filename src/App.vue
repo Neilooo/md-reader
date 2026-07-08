@@ -55,7 +55,7 @@ const {
 
 const watcher = useFileWatcher();
 const { pushRecent, saveScroll, getScroll } = useHistory();
-const { apply: applyReadingSettings } = useReadingSettings();
+const { apply: applyReadingSettings, settings: readingSettings, setFontSize, setEditorFontSize } = useReadingSettings();
 const {
   tabs,
   activeTabId,
@@ -758,6 +758,18 @@ function onKeydown(e: KeyboardEvent) {
   } else if (mod && e.key.toLowerCase() === "s") {
     e.preventDefault();
     void saveCurrentFile();
+  } else if (mod && (e.key === "=" || e.key === "+")) {
+    e.preventDefault();
+    if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize + 1);
+    else setFontSize(readingSettings.value.fontSize + 1);
+  } else if (mod && e.key === "-") {
+    e.preventDefault();
+    if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize - 1);
+    else setFontSize(readingSettings.value.fontSize - 1);
+  } else if (mod && e.key === "0") {
+    e.preventDefault();
+    if (isEditing.value) setEditorFontSize(14);
+    else setFontSize(16);
   } else if (e.key === "Escape") {
     if (find.visible.value) find.close();
     else if (showSettings.value) showSettings.value = false;

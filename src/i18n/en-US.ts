@@ -53,6 +53,7 @@ const enUS = {
   settings: {
     title: "Reading Settings",
     fontSize: "Font Size",
+    editorFontSize: "Editor Font Size",
     lineHeight: "Line Height",
     maxWidth: "Page Width",
     fontFamily: "Body Font",
