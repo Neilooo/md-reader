@@ -49,6 +49,7 @@ const zhCN = {
   settings: {
     title: "阅读设置",
     fontSize: "字号",
+    editorFontSize: "编辑器字号",
     lineHeight: "行高",
     maxWidth: "页面宽度",
     fontFamily: "正文字体",

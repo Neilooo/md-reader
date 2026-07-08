@@ -150,6 +150,7 @@ const {
   setLineHeight,
   setMaxWidth,
   setFontFamily,
+  setEditorFontSize,
   reset,
 } = useReadingSettings();
 
@@ -189,6 +190,19 @@ async function registerAssociations() {
           @input="(e) => setFontSize(Number((e.target as HTMLInputElement).value))"
         />
         <span class="value">{{ settings.fontSize }}px</span>
+      </div>
+
+      <div class="row">
+        <label>{{ t("settings.editorFontSize") }}</label>
+        <input
+          type="range"
+          :value="settings.editorFontSize"
+          min="12"
+          max="24"
+          step="1"
+          @input="(e) => setEditorFontSize(Number((e.target as HTMLInputElement).value))"
+        />
+        <span class="value">{{ settings.editorFontSize }}px</span>
       </div>
 
       <div class="row">

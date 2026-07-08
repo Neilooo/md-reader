@@ -83,6 +83,9 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 | `Ctrl+S` | Save current file |
 | `Ctrl+Shift+S` | Save as |
 | `Ctrl+P` | System print / Save as PDF |
+| `Ctrl+=` | Increase font size (editor font in edit mode, reading font in preview) |
+| `Ctrl+-` | Decrease font size (same as above) |
+| `Ctrl+0` | Reset font size to default (editor 14px, reading 16px) |
 | `Esc` | Close find/settings/dialogs |
 
 ## Screenshots

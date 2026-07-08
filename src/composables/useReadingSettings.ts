@@ -6,6 +6,7 @@ export interface ReadingSettings {
   lineHeight: number;
   maxWidth: number;
   fontFamily: string;
+  editorFontSize: number;
 }
 
 const FONT_KEYS = ["system", "sans", "serif", "mono"] as const;
@@ -39,6 +40,7 @@ function defaults(): ReadingSettings {
     lineHeight: 1.75,
     maxWidth: 900,
     fontFamily: "system",
+    editorFontSize: 14,
   };
 }
 
@@ -58,6 +60,7 @@ function apply() {
     "--reader-font-family",
     FONT_STACKS[settings.value.fontFamily] || FONT_STACKS.system
   );
+  r.style.setProperty("--editor-font-size", settings.value.editorFontSize + "px");
 }
 
 function setFontSize(v: number) {
@@ -77,6 +80,11 @@ function setMaxWidth(v: number) {
 
 function setFontFamily(v: string) {
   settings.value.fontFamily = v;
+  save();
+}
+
+function setEditorFontSize(v: number) {
+  settings.value.editorFontSize = Math.max(12, Math.min(24, v));
   save();
 }
 
@@ -101,6 +109,7 @@ export function useReadingSettings() {
     setLineHeight,
     setMaxWidth,
     setFontFamily,
+    setEditorFontSize,
     reset,
   };
 }
