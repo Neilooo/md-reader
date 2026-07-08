@@ -34,7 +34,7 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 
 ### Editing
 - CodeMirror source editing mode with Markdown highlighting, line numbers, folding, bracket matching, find/replace, and go to line
-- One-click preview / edit switch (`Ctrl+/`), with viewport synced by source line on toggle
+- One-click preview / edit switch (`Ctrl+E`), with viewport synced by source line on toggle
 - Markdown formatting shortcuts: `Ctrl+B` bold, `Ctrl+I` italic, `Ctrl+U` underline, `Ctrl+L` highlight, `` Ctrl+Shift+` `` inline code
 - Manual save / save as with unsaved-change protection for tab switches, tab close, window close, and external file changes
 
@@ -68,7 +68,7 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+/` | Toggle preview / edit mode |
+| `Ctrl+E` | Toggle preview / edit mode |
 | `Ctrl+B` | Bold (edit mode) |
 | `Ctrl+I` | Italic (edit mode) |
 | `Ctrl+U` | Underline (edit mode) |

@@ -15,7 +15,7 @@ const enUS = {
     emptyHint:
       'Click "File" or "Folder" to get started\nYou can also drag a .md file into this window',
     shortcutHint:
-      "Ctrl+N New · Ctrl+/ Preview/Edit · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
+      "Ctrl+N New · Ctrl+E Preview/Edit · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
     toggleSidebar: "Toggle sidebar",
     toggleToc: "Toggle outline",
     toggleTheme: "Toggle theme",
