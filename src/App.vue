@@ -726,7 +726,7 @@ function onKeydown(e: KeyboardEvent) {
     return;
   }
   if (e.defaultPrevented) return;
-  if (mod && (e.key === "/" || e.code === "Slash")) {
+  if (mod && e.key.toLowerCase() === "e") {
     e.preventDefault();
     toggleEditorMode();
   } else if (mod && e.key.toLowerCase() === "n") {
@@ -923,7 +923,7 @@ watch(exportToast, (v) => {
         class="btn"
         @click="toggleEditorMode"
         :disabled="!hasActiveFile"
-        :title="(isEditing ? t('editor.preview') : t('editor.edit')) + ' (Ctrl+/)'"
+        :title="(isEditing ? t('editor.preview') : t('editor.edit')) + ' (Ctrl+E)'"
       >
         {{ isEditing ? t("editor.preview") : t("editor.edit") }}
         <svg v-if="isEditing" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>

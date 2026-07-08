@@ -11,7 +11,7 @@ const zhCN = {
     openFolderHint: "点击「文件夹」\n打开目录浏览所有 md 文件",
     emptyTitle: "MD Reader",
     emptyHint: "点击「文件」或「文件夹」开始\n也可将 .md 文件拖入此窗口",
-    shortcutHint: "Ctrl+N 新建 · Ctrl+/ 切换预览/编辑 · Ctrl+F 查找 · Ctrl+S 保存 · Ctrl+Shift+F 全文搜索",
+    shortcutHint: "Ctrl+N 新建 · Ctrl+E 切换预览/编辑 · Ctrl+F 查找 · Ctrl+S 保存 · Ctrl+Shift+F 全文搜索",
     toggleSidebar: "显示/隐藏侧栏",
     toggleToc: "显示/隐藏大纲",
     toggleTheme: "切换主题",

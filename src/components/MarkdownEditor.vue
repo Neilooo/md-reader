@@ -226,7 +226,7 @@ function createEditor() {
               run: () => wrapSelection("`"),
             },
             {
-              key: "Mod-/",
+              key: "Mod-e",
               run: () => {
                 emit("toggle-mode");
                 return true;
