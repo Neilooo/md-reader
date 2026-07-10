@@ -22,11 +22,13 @@ import {
   searchPanelOpen,
 } from "@codemirror/search";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { mkdir, writeFile } from "@tauri-apps/plugin-fs";
 
 const props = defineProps<{
   modelValue: string;
   theme: "light" | "dark";
   readonly?: boolean;
+  currentFile?: string;
 }>();
 
 const emit = defineEmits<{
@@ -342,9 +344,64 @@ function goToLine() {
   gotoLine(view);
 }
 
-onMounted(createEditor);
+function formatTimestamp(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function getImageDir(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const i = normalized.lastIndexOf("/");
+  const baseDir = i < 0 ? "" : normalized.slice(0, i);
+  return baseDir ? `${baseDir}/images` : "images";
+}
+
+function handlePaste(e: ClipboardEvent) {
+  if (!props.currentFile || !view) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        const pos = view.state.selection.main.from;
+        void insertPastedImage(file, pos);
+        return;
+      }
+    }
+  }
+}
+
+async function insertPastedImage(file: File, pos: number) {
+  if (!view) return;
+  try {
+    const ext = file.type
+      ? (file.type.split("/")[1] || "png").toLowerCase()
+      : "png";
+    const fileName = `paste-${formatTimestamp(new Date())}.${ext}`;
+    const imageDir = getImageDir(props.currentFile || "");
+    await mkdir(imageDir, { recursive: true });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await writeFile(`${imageDir}/${fileName}`, bytes);
+    const markdown = `![](images/${fileName})\n`;
+    view.dispatch({
+      changes: { from: pos, insert: markdown },
+      selection: { anchor: pos + markdown.length },
+    });
+    view.focus();
+  } catch (err) {
+    console.error("paste image failed", err);
+  }
+}
+
+onMounted(() => {
+  createEditor();
+  host.value?.addEventListener("paste", handlePaste, true);
+});
 
 onBeforeUnmount(() => {
+  host.value?.removeEventListener("paste", handlePaste, true);
   view?.destroy();
   view = null;
   if (searchCounterTimer !== null) {
