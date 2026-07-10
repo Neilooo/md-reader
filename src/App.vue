@@ -887,6 +887,14 @@ watch(exportToast, (v) => {
     }, 3500);
   }
 });
+
+watch(errorMsg, (v) => {
+  if (v) {
+    window.setTimeout(() => {
+      errorMsg.value = "";
+    }, 5000);
+  }
+});
 </script>
 
 <template>
@@ -1128,8 +1136,8 @@ watch(exportToast, (v) => {
         :class="{ editing: isEditing }"
         @scroll.passive="onViewerScroll"
       >
-        <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-        <div v-else-if="!hasActiveFile" class="empty">
+        <div v-if="errorMsg" class="error" @click="errorMsg = ''">{{ errorMsg }}</div>
+        <div v-if="!hasActiveFile" class="empty">
           <div class="empty-title">{{ t("app.emptyTitle") }}</div>
           <div class="empty-hint">{{ t("app.emptyHint") }}</div>
           <div class="shortcut-hint">
@@ -1141,6 +1149,7 @@ watch(exportToast, (v) => {
           ref="editorRef"
           :model-value="draftContent"
           :theme="theme"
+          :current-file="currentFile"
           @update:model-value="onDraftUpdate"
           @toggle-mode="toggleEditorMode"
         />
@@ -1457,11 +1466,14 @@ watch(exportToast, (v) => {
   text-overflow: ellipsis;
 }
 .error {
-  margin: 24px;
-  padding: 12px 16px;
-  border-radius: 6px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 8px 16px;
   background: #fee;
   color: #c00;
-  border: 1px solid #fcc;
+  border-bottom: 1px solid #fcc;
+  cursor: pointer;
+  font-size: 13px;
 }
 </style>
