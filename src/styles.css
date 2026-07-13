@@ -25,6 +25,7 @@
   --fg-muted: #6e7781;
   --border: #d0d7de;
   --link: #0969da;
+  --editor-selection-bg: rgba(9, 105, 218, 0.3);
   --blockquote-border: #d0d7de;
   --blockquote-fg: #57606a;
   --table-border: #d0d7de;
@@ -94,6 +95,7 @@
   --fg-muted: var(--mdr-muted);
   --border: var(--mdr-line);
   --link: #6bb7d6;
+  --editor-selection-bg: rgba(100, 160, 255, 0.3);
   --blockquote-border: #3a4350;
   --blockquote-fg: #a5adba;
   --table-border: #323b48;

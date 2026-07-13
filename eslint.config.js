@@ -76,6 +76,7 @@ export default [
         PointerEvent: "readonly",
         ClipboardEvent: "readonly",
         File: "readonly",
+        WheelEvent: "readonly",
         Element: "readonly",
         btoa: "readonly",
         Uint8Array: "readonly",

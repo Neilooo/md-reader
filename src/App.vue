@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, exists } from "@tauri-apps/plugin-fs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
@@ -21,7 +21,7 @@ import { extractHeadings } from "./composables/useMarkdown";
 import { useResizable } from "./composables/useResizable";
 import { useScrollSpy } from "./composables/useScrollSpy";
 import { useFindInPage } from "./composables/useFindInPage";
-import { useHistory } from "./composables/useHistory";
+import { useHistory, type RecentItem } from "./composables/useHistory";
 import { useReadingSettings } from "./composables/useReadingSettings";
 import { useTabs, samePath, type Tab } from "./composables/useTabs";
 import {
@@ -54,7 +54,7 @@ const {
 } = useFileTree();
 
 const watcher = useFileWatcher();
-const { pushRecent, saveScroll, getScroll } = useHistory();
+const { recent, pushRecent, clearRecent, saveScroll, getScroll } = useHistory();
 const { apply: applyReadingSettings, settings: readingSettings, setFontSize, setEditorFontSize } = useReadingSettings();
 const {
   tabs,
@@ -719,6 +719,33 @@ function onDraftUpdate(value: string) {
   }, 200);
 }
 
+function dirOf(p: string): string {
+  const normalized = p.replace(/\\/g, "/");
+  const i = normalized.lastIndexOf("/");
+  return i < 0 ? "" : normalized.slice(0, i);
+}
+
+const recentFiltered = ref<RecentItem[]>([]);
+
+async function refreshRecent() {
+  const items = recent.value.slice(0, 10);
+  const checks = await Promise.all(
+    items.map(async (item) => ({
+      item,
+      ok: await exists(item.path).catch(() => false),
+    }))
+  );
+  recentFiltered.value = checks.filter((c) => c.ok).map((c) => c.item);
+}
+
+function onWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1 : -1;
+  if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize + delta);
+  else setFontSize(readingSettings.value.fontSize + delta);
+}
+
 function onKeydown(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
   if (showUnsavedDialog.value) {
@@ -732,6 +759,9 @@ function onKeydown(e: KeyboardEvent) {
   } else if (mod && e.key.toLowerCase() === "n") {
     e.preventDefault();
     void createNewFile();
+  } else if (mod && e.key.toLowerCase() === "o") {
+    e.preventDefault();
+    void pickFile();
   } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
     e.preventDefault();
     leftMode.value = "search";
@@ -864,6 +894,8 @@ onMounted(async () => {
     console.warn("drag-drop unavailable", e);
   }
   window.addEventListener("keydown", onKeydown);
+  window.addEventListener("wheel", onWheel, { passive: false });
+  void refreshRecent();
 });
 
 onUnmounted(() => {
@@ -873,6 +905,7 @@ onUnmounted(() => {
   if (headingTimer) clearTimeout(headingTimer);
   void watcher.stop();
   window.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("wheel", onWheel);
 });
 
 watch(
@@ -895,6 +928,10 @@ watch(errorMsg, (v) => {
     }, 5000);
   }
 });
+
+watch(hasActiveFile, (v) => {
+  if (!v) void refreshRecent();
+});
 </script>
 
 <template>
@@ -903,7 +940,7 @@ watch(errorMsg, (v) => {
       <button class="btn" @click="createNewFile" :title="t('toolbar.new') + ' (Ctrl+N)'">
         {{ t("toolbar.new") }}
       </button>
-      <button class="btn" @click="pickFile" :title="t('app.file') + ' .md'">
+      <button class="btn" @click="pickFile" :title="t('app.file') + ' (Ctrl+O)'">
         {{ t("app.file") }}
       </button>
       <button class="btn" @click="pickFolder" :title="t('app.folder')">
@@ -1143,6 +1180,22 @@ watch(errorMsg, (v) => {
           <div class="shortcut-hint">
             {{ t("app.shortcutHint") }}
           </div>
+          <div v-if="recentFiltered.length" class="recent-files">
+            <div class="recent-title">{{ t("app.recentFiles") }}</div>
+            <div
+              v-for="item in recentFiltered"
+              :key="item.path"
+              class="recent-item"
+              @click="loadFile(item.path)"
+              :title="item.path"
+            >
+              <span class="recent-name">{{ item.name }}</span>
+              <span class="recent-path">{{ dirOf(item.path) }}</span>
+            </div>
+            <button class="recent-clear" @click="clearRecent(); recentFiltered = []">
+              {{ t("app.clearRecent") }}
+            </button>
+          </div>
         </div>
         <MarkdownEditor
           v-else-if="isEditing"
@@ -1362,6 +1415,58 @@ watch(errorMsg, (v) => {
   font-size: 12px;
   color: var(--fg-muted);
   margin-top: 8px;
+}
+.recent-files {
+  margin-top: 16px;
+  width: 360px;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-title {
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.recent-item:hover {
+  background: var(--bg-active);
+}
+.recent-name {
+  font-size: 13px;
+  color: var(--fg);
+}
+.recent-path {
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-clear {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.recent-clear:hover {
+  color: var(--fg);
+  background: var(--bg-btn-hover);
 }
 .panel-tabs {
   display: flex;

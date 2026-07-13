@@ -79,6 +79,7 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 | `Ctrl+G` | Go to line in edit mode |
 | `Ctrl+Shift+F` | Full-text search |
 | `Ctrl+N` | New Markdown file |
+| `Ctrl+O` | Open file |
 | `Ctrl+,` | Reading settings |
 | `Ctrl+S` | Save current file |
 | `Ctrl+Shift+S` | Save as |
@@ -86,6 +87,7 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 | `Ctrl+=` | Increase font size (editor font in edit mode, reading font in preview) |
 | `Ctrl+-` | Decrease font size (same as above) |
 | `Ctrl+0` | Reset font size to default (editor 14px, reading 16px) |
+| `Ctrl+Scroll` | Zoom font size (same as Ctrl+=/-, two-mode branching) |
 | `Esc` | Close find/settings/dialogs |
 
 ## Screenshots
