@@ -85,7 +85,7 @@ const editorBaseTheme = EditorView.theme({
     color: "var(--link)",
   },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-    backgroundColor: "rgba(9, 105, 218, 0.25)",
+    backgroundColor: "var(--editor-selection-bg, rgba(9, 105, 218, 0.3))",
   },
   ".cm-search": {
     backgroundColor: "var(--bg-toolbar)",

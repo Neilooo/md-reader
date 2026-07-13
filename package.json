@@ -1,7 +1,7 @@
 {
   "name": "md-reader",
   "private": true,
-  "version": "0.2.8",
+  "version": "0.2.9",
   "type": "module",
   "description": "A lightweight, fast, WYSIWYG Markdown desktop reader built with Tauri 2 + Vue 3. Supports KaTeX, Mermaid, full-text search, and PDF/DOCX export.",
   "author": "Neilooo",

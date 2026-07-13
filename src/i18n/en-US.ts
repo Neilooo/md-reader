@@ -15,7 +15,7 @@ const enUS = {
     emptyHint:
       'Click "File" or "Folder" to get started\nYou can also drag a .md file into this window',
     shortcutHint:
-      "Ctrl+N New · Ctrl+E Preview/Edit · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
+      "Ctrl+N New · Ctrl+O Open File · Ctrl+E Preview/Edit · Ctrl+F Find · Ctrl+S Save · Ctrl+Shift+F Search",
     toggleSidebar: "Toggle sidebar",
     toggleToc: "Toggle outline",
     toggleTheme: "Toggle theme",
@@ -23,6 +23,8 @@ const enUS = {
     allFiles: "All files",
     usePath: "Use {path}",
     specifyEdgePath: "You can choose the Edge path when exporting",
+    recentFiles: "Recent Files",
+    clearRecent: "Clear List",
   },
   toolbar: {
     new: "New",
