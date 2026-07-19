@@ -23,6 +23,17 @@ function pickTheme(): "light" | "dark" {
   return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 }
 
+function buildDefaultPath(sourceFilePath: string | undefined, defaultFileName: string): string {
+  if (sourceFilePath) {
+    const lastSep = Math.max(sourceFilePath.lastIndexOf("/"), sourceFilePath.lastIndexOf("\\"));
+    if (lastSep >= 0) {
+      const dir = sourceFilePath.substring(0, lastSep + 1);
+      return dir + defaultFileName;
+    }
+  }
+  return defaultFileName;
+}
+
 export interface BuildExportOpts {
   forceLight?: boolean;
 }
@@ -68,11 +79,14 @@ ${clone.innerHTML}
 
 export async function exportToHtml(
   body: HTMLElement,
-  baseName: string
+  baseName: string,
+  sourceFilePath?: string
 ): Promise<string | null> {
+  const stem = baseName.replace(/\.[^.]+$/, "");
+  const defaultPath = buildDefaultPath(sourceFilePath, stem + ".html");
   const dest = await save({
     title: t("export.dialogHtml"),
-    defaultPath: baseName.replace(/\.[^.]+$/, "") + ".html",
+    defaultPath,
     filters: [{ name: "HTML", extensions: ["html", "htm"] }],
   });
   if (!dest) return null;
@@ -107,11 +121,14 @@ async function pandocExport(
   baseName: string,
   title: string,
   ext: "docx",
-  prettyName: string
+  prettyName: string,
+  sourceFilePath?: string
 ): Promise<string | null> {
+  const stem = baseName.replace(/\.[^.]+$/, "");
+  const defaultPath = buildDefaultPath(sourceFilePath, stem + "." + ext);
   const dest = await save({
     title: t("export.dialogDocx"),
-    defaultPath: baseName.replace(/\.[^.]+$/, "") + "." + ext,
+    defaultPath,
     filters: [{ name: prettyName, extensions: [ext] }],
   });
   if (!dest) return null;
@@ -130,9 +147,10 @@ async function pandocExport(
 export function exportToDocx(
   body: HTMLElement,
   baseName: string,
-  title: string
+  title: string,
+  sourceFilePath?: string
 ) {
-  return pandocExport(body, baseName, title, "docx", t("export.wordDocument"));
+  return pandocExport(body, baseName, title, "docx", t("export.wordDocument"), sourceFilePath);
 }
 
 export interface PdfExportResult {
@@ -183,11 +201,14 @@ export async function exportToPdf(
   body: HTMLElement,
   baseName: string,
   title: string,
+  sourceFilePath: string | undefined,
   onPickEdge: () => Promise<string | null>
 ): Promise<PdfExportResult | null> {
+  const stem = baseName.replace(/\.[^.]+$/, "");
+  const defaultPath = buildDefaultPath(sourceFilePath, stem + ".pdf");
   const dest = await save({
     title: t("export.dialogPdf"),
-    defaultPath: baseName.replace(/\.[^.]+$/, "") + ".pdf",
+    defaultPath,
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!dest) return null;
