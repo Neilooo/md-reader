@@ -619,7 +619,7 @@ async function exportHtml() {
   }
   if (!bodyRef.value || !draftContent.value) return;
   try {
-    await exportToHtml(bodyRef.value, fileName.value || "document.html");
+    await exportToHtml(bodyRef.value, fileName.value || "document.html", currentFile.value || undefined);
   } catch (e: any) {
     errorMsg.value = `${t("export.exportFailed")}: ${e?.message ?? e}`;
   }
@@ -638,7 +638,8 @@ async function exportDocx() {
     const out = await exportToDocx(
       bodyRef.value,
       fileName.value || "document",
-      displayFileName.value
+      displayFileName.value,
+      currentFile.value || undefined
     );
     if (out) exportToast.value = `${t("export.exportedDocx")}: ${out}`;
     else exportToast.value = "";
@@ -664,6 +665,7 @@ async function exportPdf() {
       bodyRef.value,
       fileName.value || "document",
       displayFileName.value,
+      currentFile.value || undefined,
       async () => {
         const picked = await open({
           title: t("export.chooseEdgePath"),
