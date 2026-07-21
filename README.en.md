@@ -36,11 +36,13 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 - CodeMirror source editing mode with Markdown highlighting, line numbers, folding, bracket matching, find/replace, and go to line
 - One-click preview / edit switch (`Ctrl+E`), with viewport synced by source line on toggle
 - Markdown formatting shortcuts: `Ctrl+B` bold, `Ctrl+I` italic, `Ctrl+U` underline, `Ctrl+L` highlight, `` Ctrl+Shift+` `` inline code
+- Paste images in edit mode with `Ctrl+V`: auto-saves to `images/` next to the current file and inserts a Markdown link
 - Manual save / save as with unsaved-change protection for tab switches, tab close, window close, and external file changes
 
 ### Navigation
 - File tree for Markdown folders
-- Outline / TOC with scroll sync
+- Outline / TOC with scroll sync, hierarchical expand/collapse (▶/▼ arrows + expand all/collapse all buttons; collapse all shows up to level 2)
+- Outline position configurable in settings: left (sidebar tab, toolbar outline button hidden) / right (standalone panel), default right
 - Resizable three-column layout
 - Internal Markdown links: `[text](./other.md#heading)`
 - Relative image path rewriting
@@ -55,9 +57,9 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 - **DOCX**: powered by pandoc; optionally set a Word template `.docx` via `--reference-doc` to control fonts, headings and paragraph styles
 
 ### Desktop integration
-- Reading settings: font size, line height, width, font family
+- Reading settings: font size, editor font size, line height, width, font family, outline position
 - File watching with auto refresh
-- Recent files and per-file scroll position restore
+- Recent files and per-file scroll position restore; empty state shows recent file list with click-to-open
 - File association for `.md / .markdown / .mdx`; settings page can register per-user file associations (works for the portable build too)
 - Single-instance behavior: opening another file reuses the existing window
 - Drag and drop files into the window
