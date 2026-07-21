@@ -151,6 +151,7 @@ const {
   setMaxWidth,
   setFontFamily,
   setEditorFontSize,
+  setTocPosition,
   reset,
 } = useReadingSettings();
 
@@ -244,6 +245,17 @@ async function registerAssociations() {
           >
             {{ opt.label }}
           </option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>{{ t("settings.tocPosition") }}</label>
+        <select
+          :value="settings.tocPosition"
+          @change="(e) => setTocPosition((e.target as HTMLSelectElement).value as 'left' | 'right')"
+        >
+          <option value="left">{{ t("settings.tocLeft") }}</option>
+          <option value="right">{{ t("settings.tocRight") }}</option>
         </select>
       </div>
 

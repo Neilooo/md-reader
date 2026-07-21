@@ -7,6 +7,7 @@ export interface ReadingSettings {
   maxWidth: number;
   fontFamily: string;
   editorFontSize: number;
+  tocPosition: "left" | "right";
 }
 
 const FONT_KEYS = ["system", "sans", "serif", "mono"] as const;
@@ -41,6 +42,7 @@ function defaults(): ReadingSettings {
     maxWidth: 900,
     fontFamily: "system",
     editorFontSize: 14,
+    tocPosition: "right",
   };
 }
 
@@ -88,6 +90,11 @@ function setEditorFontSize(v: number) {
   save();
 }
 
+function setTocPosition(v: "left" | "right") {
+  settings.value.tocPosition = v;
+  save();
+}
+
 function reset() {
   settings.value = defaults();
   save();
@@ -110,6 +117,7 @@ export function useReadingSettings() {
     setMaxWidth,
     setFontFamily,
     setEditorFontSize,
+    setTocPosition,
     reset,
   };
 }

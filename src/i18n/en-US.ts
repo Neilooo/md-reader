@@ -59,6 +59,9 @@ const enUS = {
     lineHeight: "Line Height",
     maxWidth: "Page Width",
     fontFamily: "Body Font",
+    tocPosition: "Outline Position",
+    tocLeft: "Left",
+    tocRight: "Right",
     system: "System",
     sans: "Sans",
     serif: "Serif",
@@ -142,6 +145,8 @@ const enUS = {
   toc: {
     title: "Outline",
     empty: "(No headings)",
+    expandAll: "Expand All",
+    collapseAll: "Collapse All",
   },
   tabs: {
     close: "Close tab",

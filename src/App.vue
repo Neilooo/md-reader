@@ -110,7 +110,8 @@ const showToc = ref<boolean>(
   localStorage.getItem("md-reader-show-toc") !== "0"
 );
 const showSettings = ref(false);
-const leftMode = ref<"files" | "search">("files");
+const leftMode = ref<"files" | "search" | "outline">("files");
+const tocOnLeft = computed(() => readingSettings.value.tocPosition === "left");
 const showExportMenu = ref(false);
 const exportBusy = ref(false);
 const exportToast = ref("");
@@ -934,6 +935,15 @@ watch(errorMsg, (v) => {
 watch(hasActiveFile, (v) => {
   if (!v) void refreshRecent();
 });
+
+watch(
+  () => readingSettings.value.tocPosition,
+  (pos) => {
+    if (pos === "right" && leftMode.value === "outline") {
+      leftMode.value = "files";
+    }
+  }
+);
 </script>
 
 <template>
@@ -1087,6 +1097,7 @@ watch(hasActiveFile, (v) => {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M6 2v12"/></svg>
       </button>
       <button
+        v-if="!tocOnLeft"
         class="btn"
         @click="showToc = !showToc"
         :title="t('app.toggleToc')"
@@ -1140,6 +1151,14 @@ watch(hasActiveFile, (v) => {
           >
             {{ t("app.search") }}
           </button>
+          <button
+            v-if="tocOnLeft"
+            class="tab"
+            :class="{ active: leftMode === 'outline' }"
+            @click="leftMode = 'outline'"
+          >
+            {{ t("toolbar.outline") }}
+          </button>
         </div>
         <div v-if="leftMode === 'files'" class="panel-body">
           <div class="panel-header">
@@ -1157,13 +1176,16 @@ watch(hasActiveFile, (v) => {
             <div v-else class="empty-tip">{{ t("app.openFolderHint") }}</div>
           </div>
         </div>
-        <div v-else class="panel-body">
+        <div v-else-if="leftMode === 'search'" class="panel-body">
           <SearchPanel
             :visible="true"
             :root-dir="rootDir"
             @close="leftMode = 'files'"
             @open="onSearchOpen"
           />
+        </div>
+        <div v-else-if="leftMode === 'outline'" class="panel-body">
+          <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
         </div>
       </aside>
 
@@ -1220,9 +1242,9 @@ watch(hasActiveFile, (v) => {
         />
       </section>
 
-      <div v-if="showToc" class="resizer" @pointerdown="resizeRight"></div>
+      <div v-if="showToc && !tocOnLeft" class="resizer" @pointerdown="resizeRight"></div>
 
-      <aside v-if="showToc" class="right" :style="{ width: rightWidth + 'px' }">
+      <aside v-if="showToc && !tocOnLeft" class="right" :style="{ width: rightWidth + 'px' }">
         <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
       </aside>
     </main>
