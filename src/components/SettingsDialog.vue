@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
-import { getCachedPandocRefDoc, setCachedPandocRefDoc } from "../composables/useExport";
+import {
+  getCachedPandocRefDoc,
+  setCachedPandocRefDoc,
+} from "../composables/useExport";
+import ShortcutsDialog from "./ShortcutsDialog.vue";
 
-const RELEASE_API = "https://api.github.com/repos/Neilooo/md-reader/releases/latest";
-const RELEASE_LATEST_URL = "https://github.com/Neilooo/md-reader/releases/latest";
+const RELEASE_API =
+  "https://api.github.com/repos/Neilooo/md-reader/releases/latest";
+const RELEASE_LATEST_URL =
+  "https://github.com/Neilooo/md-reader/releases/latest";
 
 type UpdateStatus = "idle" | "checking" | "latest" | "available" | "error";
 
@@ -29,7 +35,8 @@ const latestVersion = ref("");
 const latestReleaseUrl = ref(RELEASE_LATEST_URL);
 const updateBusy = computed(() => updateStatus.value === "checking");
 const updateStatusClass = computed(() => ({
-  success: updateStatus.value === "available" || updateStatus.value === "latest",
+  success:
+    updateStatus.value === "available" || updateStatus.value === "latest",
   error: updateStatus.value === "error",
 }));
 
@@ -89,7 +96,8 @@ async function checkForUpdates() {
   updateMessage.value = "";
   try {
     if (!currentVersion.value) await loadCurrentVersion();
-    if (!currentVersion.value) throw new Error(t("settings.versionUnavailable"));
+    if (!currentVersion.value)
+      throw new Error(t("settings.versionUnavailable"));
 
     const release = await fetchLatestRelease();
     const remoteTag = release.tag_name || "";
@@ -140,8 +148,16 @@ function clearPandocRefDoc() {
 
 onMounted(loadCurrentVersion);
 
-defineProps<{ visible: boolean }>();
+const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
+
+const showShortcuts = ref(false);
+watch(
+  () => props.visible,
+  (v) => {
+    if (!v) showShortcuts.value = false;
+  }
+);
 
 const {
   settings,
@@ -188,7 +204,9 @@ async function registerAssociations() {
           min="12"
           max="24"
           step="1"
-          @input="(e) => setFontSize(Number((e.target as HTMLInputElement).value))"
+          @input="
+            (e) => setFontSize(Number((e.target as HTMLInputElement).value))
+          "
         />
         <span class="value">{{ settings.fontSize }}px</span>
       </div>
@@ -201,7 +219,10 @@ async function registerAssociations() {
           min="12"
           max="24"
           step="1"
-          @input="(e) => setEditorFontSize(Number((e.target as HTMLInputElement).value))"
+          @input="
+            (e) =>
+              setEditorFontSize(Number((e.target as HTMLInputElement).value))
+          "
         />
         <span class="value">{{ settings.editorFontSize }}px</span>
       </div>
@@ -214,7 +235,9 @@ async function registerAssociations() {
           min="1.3"
           max="2.2"
           step="0.05"
-          @input="(e) => setLineHeight(Number((e.target as HTMLInputElement).value))"
+          @input="
+            (e) => setLineHeight(Number((e.target as HTMLInputElement).value))
+          "
         />
         <span class="value">{{ settings.lineHeight.toFixed(2) }}</span>
       </div>
@@ -227,7 +250,9 @@ async function registerAssociations() {
           min="640"
           max="1320"
           step="20"
-          @input="(e) => setMaxWidth(Number((e.target as HTMLInputElement).value))"
+          @input="
+            (e) => setMaxWidth(Number((e.target as HTMLInputElement).value))
+          "
         />
         <span class="value">{{ settings.maxWidth }}px</span>
       </div>
@@ -252,7 +277,12 @@ async function registerAssociations() {
         <label>{{ t("settings.tocPosition") }}</label>
         <select
           :value="settings.tocPosition"
-          @change="(e) => setTocPosition((e.target as HTMLSelectElement).value as 'left' | 'right')"
+          @change="
+            (e) =>
+              setTocPosition(
+                (e.target as HTMLSelectElement).value as 'left' | 'right'
+              )
+          "
         >
           <option value="left">{{ t("settings.tocLeft") }}</option>
           <option value="right">{{ t("settings.tocRight") }}</option>
@@ -263,7 +293,9 @@ async function registerAssociations() {
         <div>
           <div class="association-title">{{ t("settings.updateCheck") }}</div>
           <div class="association-hint">
-            {{ t("settings.currentVersion", { version: currentVersion || "-" }) }}
+            {{
+              t("settings.currentVersion", { version: currentVersion || "-" })
+            }}
           </div>
           <div
             v-if="updateMessage"
@@ -275,7 +307,11 @@ async function registerAssociations() {
         </div>
         <div class="update-actions">
           <button class="btn" :disabled="updateBusy" @click="checkForUpdates">
-            {{ updateBusy ? t("settings.checkingUpdate") : t("settings.checkUpdate") }}
+            {{
+              updateBusy
+                ? t("settings.checkingUpdate")
+                : t("settings.checkUpdate")
+            }}
           </button>
           <button
             v-if="updateStatus === 'available' || updateStatus === 'error'"
@@ -289,9 +325,15 @@ async function registerAssociations() {
 
       <div class="association">
         <div>
-          <div class="association-title">{{ t("settings.pandocTemplate") }}</div>
+          <div class="association-title">
+            {{ t("settings.pandocTemplate") }}
+          </div>
           <div class="association-hint">
-            <span v-if="pandocRefDoc" class="ref-doc-path" :title="pandocRefDoc">
+            <span
+              v-if="pandocRefDoc"
+              class="ref-doc-path"
+              :title="pandocRefDoc"
+            >
               {{ pandocRefDoc }}
             </span>
             <span v-else>{{ t("settings.pandocTemplateHint") }}</span>
@@ -309,8 +351,12 @@ async function registerAssociations() {
 
       <div class="association">
         <div>
-          <div class="association-title">{{ t("settings.fileAssociation") }}</div>
-          <div class="association-hint">{{ t("settings.fileAssociationHint") }}</div>
+          <div class="association-title">
+            {{ t("settings.fileAssociation") }}
+          </div>
+          <div class="association-hint">
+            {{ t("settings.fileAssociationHint") }}
+          </div>
           <div
             v-if="associationMessage"
             class="association-status"
@@ -324,16 +370,33 @@ async function registerAssociations() {
           :disabled="associationBusy"
           @click="registerAssociations"
         >
-          {{ associationBusy ? t("settings.registering") : t("settings.registerAssociation") }}
+          {{
+            associationBusy
+              ? t("settings.registering")
+              : t("settings.registerAssociation")
+          }}
+        </button>
+      </div>
+
+      <div class="association">
+        <div>
+          <div class="association-title">{{ t("shortcuts.title") }}</div>
+          <div class="association-hint">{{ t("shortcuts.hint") }}</div>
+        </div>
+        <button class="btn" @click="showShortcuts = true">
+          {{ t("shortcuts.view") }}
         </button>
       </div>
 
       <div class="footer">
         <button class="btn" @click="reset">{{ t("settings.reset") }}</button>
-        <button class="btn primary" @click="emit('close')">{{ t("settings.done") }}</button>
+        <button class="btn primary" @click="emit('close')">
+          {{ t("settings.done") }}
+        </button>
       </div>
     </div>
   </div>
+  <ShortcutsDialog :visible="showShortcuts" @close="showShortcuts = false" />
 </template>
 
 <style scoped>

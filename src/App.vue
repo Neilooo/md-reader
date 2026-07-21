@@ -23,6 +23,7 @@ import { useScrollSpy } from "./composables/useScrollSpy";
 import { useFindInPage } from "./composables/useFindInPage";
 import { useHistory, type RecentItem } from "./composables/useHistory";
 import { useReadingSettings } from "./composables/useReadingSettings";
+import { useShortcuts } from "./composables/useShortcuts";
 import { useTabs, samePath, type Tab } from "./composables/useTabs";
 import {
   exportToHtml,
@@ -55,7 +56,16 @@ const {
 
 const watcher = useFileWatcher();
 const { recent, pushRecent, clearRecent, saveScroll, getScroll } = useHistory();
-const { apply: applyReadingSettings, settings: readingSettings, setFontSize, setEditorFontSize } = useReadingSettings();
+const {
+  apply: applyReadingSettings,
+  settings: readingSettings,
+  setFontSize,
+  setEditorFontSize,
+} = useReadingSettings();
+const { getBinding, normalizeEvent, formatBinding } = useShortcuts();
+function shortcutSuffix(id: string): string {
+  return " (" + formatBinding(getBinding(id)) + ")";
+}
 const {
   tabs,
   activeTabId,
@@ -173,10 +183,7 @@ const unsavedDialogMessage = computed(() =>
 let headingTimer: number | null = null;
 let appWindow: import("@tauri-apps/api/window").Window | null = null;
 
-function askUnsaved(
-  tab: Tab,
-  mode: UnsavedDialogMode
-): Promise<UnsavedChoice> {
+function askUnsaved(tab: Tab, mode: UnsavedDialogMode): Promise<UnsavedChoice> {
   if (unsavedResolve) {
     // A dialog is already in flight; don't clobber its resolver.
     return Promise.resolve("cancel");
@@ -413,7 +420,9 @@ function scrollPreviewToSourceLine(line: number) {
   }
   if (!target) return;
   container.scrollTop +=
-    target.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
+    target.getBoundingClientRect().top -
+    container.getBoundingClientRect().top -
+    8;
 }
 
 function toggleEditorMode() {
@@ -620,7 +629,11 @@ async function exportHtml() {
   }
   if (!bodyRef.value || !draftContent.value) return;
   try {
-    await exportToHtml(bodyRef.value, fileName.value || "document.html", currentFile.value || undefined);
+    await exportToHtml(
+      bodyRef.value,
+      fileName.value || "document.html",
+      currentFile.value || undefined
+    );
   } catch (e: any) {
     errorMsg.value = `${t("export.exportFailed")}: ${e?.message ?? e}`;
   }
@@ -741,12 +754,21 @@ async function refreshRecent() {
   recentFiltered.value = checks.filter((c) => c.ok).map((c) => c.item);
 }
 
+function zoomFont(delta: number) {
+  if (isEditing.value)
+    setEditorFontSize(readingSettings.value.editorFontSize + delta);
+  else setFontSize(readingSettings.value.fontSize + delta);
+}
+
+function resetFont() {
+  if (isEditing.value) setEditorFontSize(14);
+  else setFontSize(16);
+}
+
 function onWheel(e: WheelEvent) {
   if (!e.ctrlKey) return;
   e.preventDefault();
-  const delta = e.deltaY < 0 ? 1 : -1;
-  if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize + delta);
-  else setFontSize(readingSettings.value.fontSize + delta);
+  zoomFont(e.deltaY < 0 ? 1 : -1);
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -756,56 +778,63 @@ function onKeydown(e: KeyboardEvent) {
     return;
   }
   if (e.defaultPrevented) return;
-  if (mod && e.key.toLowerCase() === "e") {
+
+  if (e.key === "Escape") {
+    if (find.visible.value) find.close();
+    else if (showSettings.value) showSettings.value = false;
+    return;
+  }
+
+  if (!mod) return;
+  const combo = normalizeEvent(e);
+  const isEdit = isEditing.value;
+
+  if (combo === getBinding("toggle-mode")) {
     e.preventDefault();
     toggleEditorMode();
-  } else if (mod && e.key.toLowerCase() === "n") {
+  } else if (combo === getBinding("new-file")) {
     e.preventDefault();
     void createNewFile();
-  } else if (mod && e.key.toLowerCase() === "o") {
+  } else if (combo === getBinding("open-file")) {
     e.preventDefault();
     void pickFile();
-  } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
+  } else if (combo === getBinding("search-panel")) {
     e.preventDefault();
     leftMode.value = "search";
     showFileTree.value = true;
-  } else if (mod && e.key.toLowerCase() === "f") {
-    e.preventDefault();
-    if (isEditing.value) editorRef.value?.openSearch();
-    else find.open();
-  } else if (mod && e.key.toLowerCase() === "h" && isEditing.value) {
-    e.preventDefault();
-    editorRef.value?.openReplace();
-  } else if (mod && e.key.toLowerCase() === "g" && isEditing.value) {
-    e.preventDefault();
-    editorRef.value?.goToLine();
-  } else if (mod && e.shiftKey && e.key.toLowerCase() === "s") {
+  } else if (combo === getBinding("save-as")) {
     e.preventDefault();
     void saveAsCurrentFile();
-  } else if (mod && e.key === ",") {
+  } else if (combo === getBinding("settings")) {
     e.preventDefault();
     showSettings.value = true;
-  } else if (mod && e.key.toLowerCase() === "p") {
+  } else if (combo === getBinding("print")) {
     e.preventDefault();
     doPrint();
-  } else if (mod && e.key.toLowerCase() === "s") {
+  } else if (combo === getBinding("save")) {
     e.preventDefault();
     void saveCurrentFile();
-  } else if (mod && (e.key === "=" || e.key === "+")) {
+  } else if (combo === getBinding("zoom-in")) {
     e.preventDefault();
-    if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize + 1);
-    else setFontSize(readingSettings.value.fontSize + 1);
-  } else if (mod && e.key === "-") {
+    zoomFont(1);
+  } else if (combo === getBinding("zoom-out")) {
     e.preventDefault();
-    if (isEditing.value) setEditorFontSize(readingSettings.value.editorFontSize - 1);
-    else setFontSize(readingSettings.value.fontSize - 1);
-  } else if (mod && e.key === "0") {
+    zoomFont(-1);
+  } else if (combo === getBinding("zoom-reset")) {
     e.preventDefault();
-    if (isEditing.value) setEditorFontSize(14);
-    else setFontSize(16);
-  } else if (e.key === "Escape") {
-    if (find.visible.value) find.close();
-    else if (showSettings.value) showSettings.value = false;
+    resetFont();
+  } else if (isEdit && combo === getBinding("find")) {
+    e.preventDefault();
+    editorRef.value?.openSearch();
+  } else if (isEdit && combo === getBinding("replace")) {
+    e.preventDefault();
+    editorRef.value?.openReplace();
+  } else if (isEdit && combo === getBinding("go-to-line")) {
+    e.preventDefault();
+    editorRef.value?.goToLine();
+  } else if (!isEdit && combo === getBinding("find")) {
+    e.preventDefault();
+    find.open();
   }
 }
 
@@ -949,10 +978,18 @@ watch(
 <template>
   <div class="app">
     <header class="toolbar">
-      <button class="btn" @click="createNewFile" :title="t('toolbar.new') + ' (Ctrl+N)'">
+      <button
+        class="btn"
+        @click="createNewFile"
+        :title="t('toolbar.new') + shortcutSuffix('new-file')"
+      >
         {{ t("toolbar.new") }}
       </button>
-      <button class="btn" @click="pickFile" :title="t('app.file') + ' (Ctrl+O)'">
+      <button
+        class="btn"
+        @click="pickFile"
+        :title="t('app.file') + shortcutSuffix('open-file')"
+      >
         {{ t("app.file") }}
       </button>
       <button class="btn" @click="pickFolder" :title="t('app.folder')">
@@ -980,38 +1017,111 @@ watch(
         class="btn"
         @click="toggleEditorMode"
         :disabled="!hasActiveFile"
-        :title="(isEditing ? t('editor.preview') : t('editor.edit')) + ' (Ctrl+E)'"
+        :title="
+          (isEditing ? t('editor.preview') : t('editor.edit')) +
+            shortcutSuffix('toggle-mode')
+        "
       >
         {{ isEditing ? t("editor.preview") : t("editor.edit") }}
-        <svg v-if="isEditing" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>
-        <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M11 2l3 3L4 15H1v-3z"/><path d="M8 6l2 2"/></svg>
+        <svg
+          v-if="isEditing"
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <path
+            d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"
+          />
+          <circle cx="8" cy="8" r="2" />
+        </svg>
+        <svg
+          v-else
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <path d="M11 2l3 3L4 15H1v-3z" />
+          <path d="M8 6l2 2" />
+        </svg>
       </button>
       <button
         class="btn"
         @click="() => saveCurrentFile()"
         :disabled="!hasActiveFile || !isDirty || saving"
-        :title="t('editor.save') + ' (Ctrl+S)'"
+        :title="t('editor.save') + shortcutSuffix('save')"
       >
         {{ t("editor.save") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 2h8l4 4v9H3V2z"/><path d="M11 2v4h4"/><path d="M5 8h6v5H5z"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <path d="M3 2h8l4 4v9H3V2z" />
+          <path d="M11 2v4h4" />
+          <path d="M5 8h6v5H5z" />
+        </svg>
       </button>
       <button
         class="btn"
         @click="() => saveAsCurrentFile()"
         :disabled="!hasActiveFile || saving"
-        :title="t('editor.saveAs') + ' (Ctrl+Shift+S)'"
+        :title="t('editor.saveAs') + shortcutSuffix('save-as')"
       >
         {{ t("editor.saveAs") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 2h6l4 4v8H3V2z"/><path d="M9 2v4h4"/><path d="M6 10h6M6 12h6"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <path d="M3 2h6l4 4v8H3V2z" />
+          <path d="M9 2v4h4" />
+          <path d="M6 10h6M6 12h6" />
+        </svg>
       </button>
       <button
         class="btn"
         @click="isEditing ? editorRef?.openSearch() : find.open()"
-        :title="t('toolbar.find') + ' (Ctrl+F)'"
+        :title="t('toolbar.find') + shortcutSuffix('find')"
         :disabled="!hasActiveFile"
       >
         {{ t("toolbar.find") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <circle cx="6.5" cy="6.5" r="4.5" />
+          <path d="M10 10l4.5 4.5" />
+        </svg>
       </button>
       <div class="export-wrap">
         <button
@@ -1023,7 +1133,21 @@ watch(
           "
         >
           {{ exportBusy ? "⏳" : t("toolbar.export") + " " }}
-          <svg v-if="!exportBusy" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M8 2v9M4 6l4-4 4 4"/><path d="M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
+          <svg
+            v-if="!exportBusy"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="vertical-align: -2px"
+          >
+            <path d="M8 2v9M4 6l4-4 4 4" />
+            <path d="M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
+          </svg>
         </button>
         <div v-if="showExportMenu" class="export-menu" @click.stop>
           <button
@@ -1083,10 +1207,24 @@ watch(
       <button
         class="btn"
         @click="showSettings = true"
-        :title="t('toolbar.settings') + ' (Ctrl+,)'"
+        :title="t('toolbar.settings') + shortcutSuffix('settings')"
       >
         {{ t("toolbar.settingsBtn") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <circle cx="8" cy="8" r="2.5" />
+          <path
+            d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"
+          />
+        </svg>
       </button>
       <button
         class="btn"
@@ -1094,7 +1232,20 @@ watch(
         :title="t('app.toggleSidebar')"
       >
         {{ t("toolbar.sidebar") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:2px"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M6 2v12"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <rect x="2" y="2" width="12" height="12" rx="1" />
+          <path d="M6 2v12" />
+        </svg>
       </button>
       <button
         v-if="!tocOnLeft"
@@ -1103,7 +1254,18 @@ watch(
         :title="t('app.toggleToc')"
       >
         {{ t("toolbar.outline") }}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-left:2px"><path d="M3 3h10M3 7h10M3 11h7"/></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          style="vertical-align: -2px; margin-left: 2px"
+        >
+          <path d="M3 3h10M3 7h10M3 11h7" />
+        </svg>
       </button>
       <button
         class="btn icon"
@@ -1147,7 +1309,7 @@ watch(
             class="tab"
             :class="{ active: leftMode === 'search' }"
             @click="leftMode = 'search'"
-            :title="t('app.search') + ' (Ctrl+Shift+F)'"
+            :title="t('app.search') + shortcutSuffix('search-panel')"
           >
             {{ t("app.search") }}
           </button>
@@ -1197,7 +1359,9 @@ watch(
         :class="{ editing: isEditing }"
         @scroll.passive="onViewerScroll"
       >
-        <div v-if="errorMsg" class="error" @click="errorMsg = ''">{{ errorMsg }}</div>
+        <div v-if="errorMsg" class="error" @click="errorMsg = ''">
+          {{ errorMsg }}
+        </div>
         <div v-if="!hasActiveFile" class="empty">
           <div class="empty-title">{{ t("app.emptyTitle") }}</div>
           <div class="empty-hint">{{ t("app.emptyHint") }}</div>
@@ -1216,7 +1380,13 @@ watch(
               <span class="recent-name">{{ item.name }}</span>
               <span class="recent-path">{{ dirOf(item.path) }}</span>
             </div>
-            <button class="recent-clear" @click="clearRecent(); recentFiltered = []">
+            <button
+              class="recent-clear"
+              @click="
+                clearRecent();
+                recentFiltered = [];
+              "
+            >
               {{ t("app.clearRecent") }}
             </button>
           </div>
@@ -1242,9 +1412,17 @@ watch(
         />
       </section>
 
-      <div v-if="showToc && !tocOnLeft" class="resizer" @pointerdown="resizeRight"></div>
+      <div
+        v-if="showToc && !tocOnLeft"
+        class="resizer"
+        @pointerdown="resizeRight"
+      ></div>
 
-      <aside v-if="showToc && !tocOnLeft" class="right" :style="{ width: rightWidth + 'px' }">
+      <aside
+        v-if="showToc && !tocOnLeft"
+        class="right"
+        :style="{ width: rightWidth + 'px' }"
+      >
         <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
       </aside>
     </main>
