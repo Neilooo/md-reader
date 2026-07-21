@@ -58,6 +58,7 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 
 ### Desktop integration
 - Reading settings: font size, editor font size, line height, width, font family, outline position
+- Customizable shortcuts: Settings -> View shortcuts, click a key cap to record a new combo; supports global and editor shortcuts, conflict detection, per-item and full reset
 - File watching with auto refresh
 - Recent files and per-file scroll position restore; empty state shows recent file list with click-to-open
 - File association for `.md / .markdown / .mdx`; settings page can register per-user file associations (works for the portable build too)
@@ -91,6 +92,8 @@ Small footprint (~6 MB), fast startup, multi-tab editing, source editing, KaTeX 
 | `Ctrl+0` | Reset font size to default (editor 14px, reading 16px) |
 | `Ctrl+Scroll` | Zoom font size (same as Ctrl+=/-, two-mode branching) |
 | `Esc` | Close find/settings/dialogs |
+
+> All shortcuts above can be customized in **Settings -> View shortcuts** (except Esc and scroll zoom).
 
 ## Screenshots
 
