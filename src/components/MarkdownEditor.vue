@@ -23,6 +23,7 @@ import {
 } from "@codemirror/search";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { mkdir, writeFile } from "@tauri-apps/plugin-fs";
+import { useShortcuts } from "../composables/useShortcuts";
 
 const props = defineProps<{
   modelValue: string;
@@ -45,6 +46,8 @@ let lastSearchKey = "";
 
 const themeCompartment = new Compartment();
 const editableCompartment = new Compartment();
+const keymapCompartment = new Compartment();
+const { getBinding, toCodeMirror, overrides } = useShortcuts();
 const replacePanelTheme = EditorView.baseTheme({
   ".cm-panel.cm-search [name=replace]": {
     display: "inline-block",
@@ -157,8 +160,10 @@ function updateSearchCounter() {
   for (let next = cursor.next(); !next.done; next = cursor.next()) {
     total += 1;
     const match = next.value;
-    if (match.from === selection.from && match.to === selection.to) current = total;
-    if (!firstAfterSelection && match.from >= selection.from) firstAfterSelection = total;
+    if (match.from === selection.from && match.to === selection.to)
+      current = total;
+    if (!firstAfterSelection && match.from >= selection.from)
+      firstAfterSelection = total;
   }
   if (!current) current = firstAfterSelection || (total ? 1 : 0);
   searchCounter.value = {
@@ -194,6 +199,51 @@ function focusSearchInput() {
   });
 }
 
+function buildKeymap() {
+  return Prec.highest(
+    keymap.of([
+      {
+        key: toCodeMirror(getBinding("highlight")),
+        run: () => wrapSelection("<mark>", "</mark>"),
+      },
+      { key: toCodeMirror(getBinding("bold")), run: () => wrapSelection("**") },
+      {
+        key: toCodeMirror(getBinding("italic")),
+        run: () => wrapSelection("*"),
+      },
+      {
+        key: toCodeMirror(getBinding("underline")),
+        run: () => wrapSelection("<u>", "</u>"),
+      },
+      {
+        key: toCodeMirror(getBinding("inline-code")),
+        run: () => wrapSelection("`"),
+      },
+      {
+        key: toCodeMirror(getBinding("toggle-mode")),
+        run: () => {
+          emit("toggle-mode");
+          return true;
+        },
+      },
+      {
+        key: toCodeMirror(getBinding("find")),
+        run: () => {
+          openSearch();
+          return true;
+        },
+      },
+      {
+        key: toCodeMirror(getBinding("replace")),
+        run: () => {
+          openReplace();
+          return true;
+        },
+      },
+    ])
+  );
+}
+
 function createEditor() {
   if (!host.value) return;
   view = new EditorView({
@@ -205,51 +255,7 @@ function createEditor() {
         markdown(),
         search({ top: true }),
         replacePanelTheme,
-        Prec.highest(
-          keymap.of([
-            {
-              key: "Mod-l",
-              run: () => wrapSelection("<mark>", "</mark>"),
-            },
-            {
-              key: "Mod-b",
-              run: () => wrapSelection("**"),
-            },
-            {
-              key: "Mod-i",
-              run: () => wrapSelection("*"),
-            },
-            {
-              key: "Mod-u",
-              run: () => wrapSelection("<u>", "</u>"),
-            },
-            {
-              key: "Mod-Shift-`",
-              run: () => wrapSelection("`"),
-            },
-            {
-              key: "Mod-e",
-              run: () => {
-                emit("toggle-mode");
-                return true;
-              },
-            },
-            {
-              key: "Mod-f",
-              run: () => {
-                openSearch();
-                return true;
-              },
-            },
-            {
-              key: "Mod-h",
-              run: () => {
-                openReplace();
-                return true;
-              },
-            },
-          ])
-        ),
+        keymapCompartment.of(buildKeymap()),
         keymap.of([indentWithTab, ...searchKeymap]),
         themeCompartment.of(themeExtension()),
         editableCompartment.of(editableExtension()),
@@ -258,8 +264,14 @@ function createEditor() {
           if (update.docChanged) {
             emit("update:modelValue", update.state.doc.toString());
           }
-          if (update.docChanged || update.selectionSet || update.transactions.length) {
-            scheduleSearchCounterUpdate(update.docChanged || update.selectionSet);
+          if (
+            update.docChanged ||
+            update.selectionSet ||
+            update.transactions.length
+          ) {
+            scheduleSearchCounterUpdate(
+              update.docChanged || update.selectionSet
+            );
           }
         }),
       ],
@@ -432,6 +444,14 @@ watch(
       effects: editableCompartment.reconfigure(editableExtension()),
     });
   }
+);
+
+watch(
+  overrides,
+  () => {
+    view?.dispatch({ effects: keymapCompartment.reconfigure(buildKeymap()) });
+  },
+  { deep: true }
 );
 
 defineExpose({
