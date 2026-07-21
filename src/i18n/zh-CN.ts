@@ -55,6 +55,9 @@ const zhCN = {
     lineHeight: "行高",
     maxWidth: "页面宽度",
     fontFamily: "正文字体",
+    tocPosition: "大纲位置",
+    tocLeft: "左侧",
+    tocRight: "右侧",
     system: "系统默认",
     sans: "无衬线",
     serif: "衬线",
@@ -134,6 +137,8 @@ const zhCN = {
   toc: {
     title: "大纲",
     empty: "（无标题）",
+    expandAll: "全部展开",
+    collapseAll: "全部折叠",
   },
   tabs: {
     close: "关闭标签",
