@@ -10,7 +10,7 @@ import {
   type Extension,
   type SelectionRange,
 } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import {
@@ -81,7 +81,7 @@ const editorBaseTheme = EditorView.theme({
     borderRight: "1px solid var(--border)",
   },
   ".cm-activeLine": {
-    backgroundColor: "var(--bg-active)",
+    backgroundColor: "var(--editor-active-line-bg, rgba(0, 0, 0, 0.03))",
   },
   ".cm-activeLineGutter": {
     backgroundColor: "var(--bg-active)",
@@ -252,6 +252,7 @@ function createEditor() {
       doc: props.modelValue,
       extensions: [
         basicSetup,
+        drawSelection(),
         markdown(),
         search({ top: true }),
         replacePanelTheme,
