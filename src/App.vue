@@ -277,6 +277,20 @@ function switchToTab(id: string) {
   activateTab(id);
 }
 
+async function handleRefresh() {
+  saveCurrentScroll();
+  if (isEditing.value && editorRef.value && activeTab.value) {
+    activeTab.value.pendingSourceLine = editorRef.value.getTopVisibleLine();
+  }
+  if (activeTab.value?.path) {
+    addSuppress(activeTab.value.path);
+  }
+  await refreshTree();
+  if (activeTab.value?.path) {
+    scheduleSuppressClear(activeTab.value.path);
+  }
+}
+
 async function saveTab(tab: Tab): Promise<boolean> {
   if (!tab.path || saving.value) return false;
   saving.value = true;
@@ -998,7 +1012,7 @@ watch(
       <button
         v-if="rootDir"
         class="btn"
-        @click="refreshTree"
+        @click="handleRefresh"
         :disabled="treeLoading"
         :title="t('app.refresh')"
       >
