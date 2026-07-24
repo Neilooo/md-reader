@@ -30,13 +30,18 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "tauri": "tauri",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,css,json}\""
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
@@ -68,17 +73,21 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.1.0",
+    "@types/jsdom": "^28.0.3",
     "@types/katex": "^0.16.8",
     "@types/markdown-it": "^14.1.2",
     "@types/markdown-it-emoji": "^3.0.1",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.62.0",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.11",
     "eslint": "^10.5.0",
     "eslint-plugin-vue": "^10.9.2",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
+    "vitest": "^4.1.10",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^2.1.10"
   }
