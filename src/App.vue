@@ -141,6 +141,7 @@ const { width: rightWidth, startResize: resizeRight } = useResizable(
 
 const viewerEl = ref<HTMLElement | null>(null);
 const markdownRef = ref<{ root: HTMLElement | null } | null>(null);
+const treeScrollEl = ref<HTMLElement | null>(null);
 const bodyRef = computed(() => markdownRef.value?.root ?? null);
 
 const { activeId, onScroll, jumpTo } = useScrollSpy(viewerEl, bodyRef);
@@ -882,6 +883,11 @@ watch(activeTabId, () => {
   if (!activeTab.value?.isEditing) nextTick(onScroll);
 });
 
+/** 将 .tree-scroll DOM 注入到 FileTree 的 __treeScrollContainer */
+watch(treeScrollEl, (el) => {
+  (window as any).__treeScrollContainer = el;
+});
+
 let unlistenDrop: (() => void) | null = null;
 let unlistenOpen: (() => void) | null = null;
 let unlistenClose: (() => void) | null = null;
@@ -1342,7 +1348,7 @@ watch(
             <span v-if="treeLoading" class="muted">…</span>
           </div>
           <div v-if="treeError" class="panel-error">{{ treeError }}</div>
-          <div class="tree-scroll">
+          <div class="tree-scroll" ref="treeScrollEl">
             <FileTree
               v-if="rootDir"
               :nodes="tree"

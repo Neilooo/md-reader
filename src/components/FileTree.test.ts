@@ -19,7 +19,12 @@ function makeDir(name: string, path: string, children?: TreeNode[]): TreeNode {
 }
 
 function makeFile(name: string, path: string): TreeNode {
-  return { name, path, isDir: false, file: { path, name, rel_path: "", size: 0, modified_ms: 0 } };
+  return {
+    name,
+    path,
+    isDir: false,
+    file: { path, name, rel_path: "", size: 0, modified_ms: 0 },
+  };
 }
 
 // 构建一个嵌套目录树：
@@ -102,9 +107,9 @@ describe("FileTree", () => {
 
     it("does not mark non-current files as active", () => {
       wrapper = renderTree(sampleNodes, "/root/docs/guide.md");
-      const readmeFile = wrapper.findAll(".row.file").find((el) =>
-        el.find(".name").text() === "README.md"
-      );
+      const readmeFile = wrapper
+        .findAll(".row.file")
+        .find((el) => el.find(".name").text() === "README.md");
       expect(readmeFile?.classes("active")).toBe(false);
     });
   });
@@ -171,14 +176,18 @@ describe("FileTree", () => {
       await new Promise((r) => setTimeout(r, 100));
       vi.clearAllMocks();
 
-      expect(wrapper.find(".row.file.active").find(".name").text()).toBe("guide.md");
+      expect(wrapper.find(".row.file.active").find(".name").text()).toBe(
+        "guide.md"
+      );
       expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
 
       await wrapper.setProps({ currentPath: "/root/docs/advanced/plugin.md" });
       await wrapper.vm.$nextTick();
       await new Promise((r) => setTimeout(r, 100));
 
-      expect(wrapper.find(".row.file.active").find(".name").text()).toBe("plugin.md");
+      expect(wrapper.find(".row.file.active").find(".name").text()).toBe(
+        "plugin.md"
+      );
       expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▼");
       expect(mockScrollIntoView).toHaveBeenCalled();
     });
@@ -218,7 +227,9 @@ describe("FileTree", () => {
         makeFile("b.md", "/root/b.md"),
       ];
       wrapper = renderTree(flatNodes, "/root/a.md");
-      expect(wrapper.find(".row.file.active").find(".name").text()).toBe("a.md");
+      expect(wrapper.find(".row.file.active").find(".name").text()).toBe(
+        "a.md"
+      );
     });
   });
 });
