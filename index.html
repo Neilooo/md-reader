@@ -4,6 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MD Reader</title>
+    <script>
+      (function () {
+        const THEME_STORAGE_KEY = "md-reader-theme";
+        try {
+          const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+          const prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)"
+          ).matches;
+
+          let theme = "light";
+          if (stored === "dark" || stored === "light") {
+            theme = stored;
+          } else {
+            theme = prefersDark ? "dark" : "light";
+          }
+
+          const root = document.documentElement;
+          root.setAttribute("data-theme", theme);
+          root.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      html[data-theme="dark"] {
+        background-color: #0d1117;
+      }
+      html[data-theme="light"] {
+        background-color: #ffffff;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
