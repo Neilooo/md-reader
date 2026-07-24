@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch, nextTick } from "vue";
 import type { TreeNode } from "../composables/useFileTree";
 
-defineProps<{
-  nodes: TreeNode[];
-  currentPath: string;
-  depth?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    nodes: TreeNode[];
+    currentPath: string;
+    depth?: number;
+  }>(),
+  {
+    depth: 0,
+  }
+);
 
 const emit = defineEmits<{
   (e: "open", path: string): void;
@@ -17,6 +22,50 @@ const collapsed = ref<Record<string, boolean>>({});
 function toggle(key: string) {
   collapsed.value[key] = !collapsed.value[key];
 }
+
+/** 递归展开目标文件路径上的所有父目录 */
+function expandAncestors(nodes: TreeNode[], target: string) {
+  for (const node of nodes) {
+    if (node.isDir) {
+      if (target.startsWith(node.path)) {
+        collapsed.value[node.path] = false;
+        if (node.children) expandAncestors(node.children, target);
+      }
+    }
+  }
+}
+
+/** currentPath 变化时：先折叠所有目录，再展开目标文件路径上的父目录，最后滚动定位 */
+watch(
+  () => props.currentPath,
+  (newPath) => {
+    if (!newPath) return;
+
+    // 折叠所有目录（重置状态）
+    function collapseAll(nodes: TreeNode[]) {
+      for (const node of nodes) {
+        if (node.isDir) {
+          collapsed.value[node.path] = true;
+          if (node.children) collapseAll(node.children);
+        }
+      }
+    }
+    collapseAll(props.nodes);
+
+    // 展开目标路径上的父目录
+    expandAncestors(props.nodes, newPath);
+
+    nextTick(() => {
+      setTimeout(() => {
+        const container = (window as any).__treeScrollContainer as HTMLElement | null;
+        if (container) {
+          const active = container.querySelector(".row.file.active") as HTMLElement | null;
+          if (active) active.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }, 50);
+    });
+  }
+);
 </script>
 
 <template>

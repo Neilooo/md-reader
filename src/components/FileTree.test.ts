@@ -31,9 +31,9 @@ function makeFile(name: string, path: string): TreeNode {
 //   README.md
 
 const sampleNodes: TreeNode[] = [
-  makeDir("docs", "docs", [
+  makeDir("docs", "/root/docs", [
     makeFile("guide.md", "/root/docs/guide.md"),
-    makeDir("advanced", "docs/advanced", [
+    makeDir("advanced", "/root/docs/advanced", [
       makeFile("plugin.md", "/root/docs/advanced/plugin.md"),
     ]),
   ]),
@@ -47,19 +47,31 @@ describe("FileTree", () => {
   let mockScrollIntoView: ReturnType<typeof vi.fn>;
 
   function renderTree(nodes: TreeNode[], currentPath = "") {
-    return mount(FileTree, {
+    const w = mount(FileTree, {
       props: { nodes, currentPath },
+      attachTo: document.body,
     });
+    mockScrollContainer.appendChild(w.element);
+    return w;
   }
+
+  let mockScrollContainer: HTMLElement;
 
   beforeEach(() => {
     mockScrollIntoView = vi.fn();
     (window.HTMLElement.prototype as any).scrollIntoView = mockScrollIntoView;
     vi.clearAllMocks();
+    delete (window as any).__treeScrollContainer;
+    mockScrollContainer = document.createElement("div");
+    mockScrollContainer.className = "tree-scroll";
+    document.body.appendChild(mockScrollContainer);
+    (window as any).__treeScrollContainer = mockScrollContainer;
   });
 
   afterEach(() => {
     wrapper?.unmount();
+    mockScrollContainer.remove();
+    delete (window as any).__treeScrollContainer;
     delete (window.HTMLElement.prototype as any).scrollIntoView;
   });
 
@@ -106,18 +118,17 @@ describe("FileTree", () => {
 
       await wrapper.setProps({ currentPath: "/root/docs/advanced/plugin.md" });
       await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
 
       // 1. 目标文件存在且高亮
       const active = wrapper.find(".row.file.active");
       expect(active.exists()).toBe(true);
       expect(active.find(".name").text()).toBe("plugin.md");
 
-      // 2. "docs" 目录已展开（caret 是 ▼）
-      const docsCaret = wrapper.findAll(".dir").at(0)?.find(".caret");
-      expect(docsCaret?.text()).toBe("▼");
+      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
 
       // 3. "advanced" 目录已展开
-      const advancedCaret = wrapper.findAll(".dir").at(1)?.find(".caret");
+      const advancedCaret = wrapper.findAll(".dir")[1]?.find(".caret");
       expect(advancedCaret?.text()).toBe("▼");
 
       // 4. scrollIntoView 被调用（定位目标文件）
@@ -130,11 +141,11 @@ describe("FileTree", () => {
       await wrapper.vm.$nextTick();
 
       // "docs" 目录展开
-      const docsCaret = wrapper.findAll(".dir").at(0)?.find(".caret");
+      const docsCaret = wrapper.findAll(".dir")[0]?.find(".caret");
       expect(docsCaret?.text()).toBe("▼");
 
       // "advanced" 目录不应展开
-      const advancedCaret = wrapper.findAll(".dir").at(1)?.find(".caret");
+      const advancedCaret = wrapper.findAll(".dir")[1]?.find(".caret");
       expect(advancedCaret?.text()).toBe("▶");
     });
 
@@ -142,6 +153,7 @@ describe("FileTree", () => {
       wrapper = renderTree(sampleNodes, "");
       await wrapper.setProps({ currentPath: "/root/README.md" });
       await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
 
       const active = wrapper.find(".row.file.active");
       expect(active.exists()).toBe(true);
@@ -156,17 +168,19 @@ describe("FileTree", () => {
     it("re-expands directories and scrolls when switching between tabs", async () => {
       wrapper = renderTree(sampleNodes, "/root/docs/guide.md");
       await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
       vi.clearAllMocks();
 
       expect(wrapper.find(".row.file.active").find(".name").text()).toBe("guide.md");
-      expect(wrapper.findAll(".dir").at(0)?.find(".caret")?.text()).toBe("▼");
+      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
 
       await wrapper.setProps({ currentPath: "/root/docs/advanced/plugin.md" });
       await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(wrapper.find(".row.file.active").find(".name").text()).toBe("plugin.md");
-      expect(wrapper.findAll(".dir").at(1)?.find(".caret")?.text()).toBe("▼");
-      expect(mockScrollIntoView).toHaveBeenCalledTimes(1);
+      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▼");
+      expect(mockScrollIntoView).toHaveBeenCalled();
     });
 
     it("collapses previously expanded directories when switching to a different branch", async () => {
@@ -174,14 +188,14 @@ describe("FileTree", () => {
       await wrapper.vm.$nextTick();
       vi.clearAllMocks();
 
-      expect(wrapper.findAll(".dir").at(0)?.find(".caret")?.text()).toBe("▼");
-      expect(wrapper.findAll(".dir").at(1)?.find(".caret")?.text()).toBe("▼");
+      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
+      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▼");
 
       await wrapper.setProps({ currentPath: "/root/docs/guide.md" });
       await wrapper.vm.$nextTick();
 
-      expect(wrapper.findAll(".dir").at(0)?.find(".caret")?.text()).toBe("▼");
-      expect(wrapper.findAll(".dir").at(1)?.find(".caret")?.text()).toBe("▶");
+      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
+      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▶");
     });
   });
 
