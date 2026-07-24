@@ -34,6 +34,7 @@ import {
   printDocument,
   type PandocInfo,
 } from "./composables/useExport";
+import { useTheme } from "./composables/useTheme.ts";
 
 const { t, locale } = useI18n();
 
@@ -110,9 +111,6 @@ function scheduleSuppressClear(p: string) {
   window.setTimeout(() => clearSuppress(p), 1000);
 }
 
-const theme = ref<"light" | "dark">(
-  (localStorage.getItem("md-reader-theme") as "light" | "dark") || "light"
-);
 const showFileTree = ref<boolean>(
   localStorage.getItem("md-reader-show-tree") !== "0"
 );
@@ -620,19 +618,21 @@ async function restoreTabs(initialPath = "") {
   if (initialPath) await loadFile(initialPath);
 }
 
+const { themeMode, effectiveTheme } = useTheme();
+
+const themeIcon = computed(() => {
+  if (themeMode.value === "light") return "☀️";
+  if (themeMode.value === "dark") return "🌙";
+  return "🌗";
+});
+
 function toggleTheme() {
-  theme.value = theme.value === "light" ? "dark" : "light";
-  localStorage.setItem("md-reader-theme", theme.value);
-  applyTheme();
+  if (themeMode.value === "system") themeMode.value = "light";
+  else if (themeMode.value === "light") themeMode.value = "dark";
+  else themeMode.value = "system";
+
   // Force Mermaid/KaTeX re-render so charts follow the new theme.
   renderTick.value++;
-}
-
-function applyTheme() {
-  document.documentElement.dataset.theme = theme.value;
-  void invoke("set_app_theme", { theme: theme.value }).catch(() => {
-    /* ignore in non-Tauri environments */
-  });
 }
 
 async function exportHtml() {
@@ -887,7 +887,6 @@ let unlistenOpen: (() => void) | null = null;
 let unlistenClose: (() => void) | null = null;
 
 onMounted(async () => {
-  applyTheme();
   applyReadingSettings();
   void checkPandoc().then((info) => (pandocInfo.value = info));
   void checkPdfEngine().then((p) => (pdfEnginePath.value = p));
@@ -1286,7 +1285,7 @@ watch(
         @click="toggleTheme"
         :title="t('app.toggleTheme')"
       >
-        {{ theme === "light" ? "🌙" : "☀️" }}
+        {{ themeIcon }}
       </button>
       <button
         class="btn lang"
@@ -1409,7 +1408,7 @@ watch(
           v-else-if="isEditing"
           ref="editorRef"
           :model-value="draftContent"
-          :theme="theme"
+          :theme="effectiveTheme"
           :current-file="currentFile"
           @update:model-value="onDraftUpdate"
           @toggle-mode="toggleEditorMode"

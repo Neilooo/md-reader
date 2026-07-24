@@ -6,11 +6,16 @@ use std::time::Duration;
 use notify_debouncer_mini::notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use serde::Serialize;
+use tauri::Manager;
+use tauri_plugin_store::StoreExt;
 
 mod pdf_export;
 mod pdf_utils;
 
 use pdf_utils::{current_millis, strip_windows_extended_prefix};
+
+const STORAGE_FILE: &str = "settings.json";
+const THEME_STORAGE_KEY: &str = "md-reader-theme";
 
 #[cfg(target_os = "windows")]
 fn apply_windows_frame_theme(window: &tauri::WebviewWindow, is_dark: bool) {
@@ -46,6 +51,7 @@ fn extract_md_path_from_args(argv: &[String]) -> Option<String> {
     }
     None
 }
+
 use tauri::{Emitter, State};
 use walkdir::WalkDir;
 
@@ -428,18 +434,26 @@ fn register_file_associations() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn set_app_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
-    let is_dark = theme == "dark";
+fn set_theme_mode(window: tauri::WebviewWindow, theme_mode: String) -> Result<(), String> {
+    let theme_option = match theme_mode.as_str() {
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        "system" | _ => None, // 传入 None 可恢复对操作系统的监听
+    };
+
     window
-        .set_theme(Some(if is_dark {
-            tauri::Theme::Dark
-        } else {
-            tauri::Theme::Light
-        }))
+        .set_theme(theme_option)
         .map_err(|e| e.to_string())?;
-    apply_windows_frame_theme(&window, is_dark);
+
     Ok(())
 }
+
+#[tauri::command]
+fn set_effective_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
+    apply_windows_frame_theme(&window, theme == "dark");
+    Ok(())
+}
+
 #[tauri::command]
 fn initial_open_file() -> Option<String> {
     let argv: Vec<String> = std::env::args().collect();
@@ -451,7 +465,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Already-running instance: focus window and emit the new file path.
-            use tauri::{Emitter, Manager};
+            use tauri::Emitter;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -464,14 +478,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
-            use tauri::Manager;
             app.manage(WatcherState::default());
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_theme(None);
-                apply_windows_frame_theme(&window, false);
+
+            let window = app.get_webview_window("main").unwrap();
+            let store = app.store(STORAGE_FILE)?;
+            if let Some(theme) = store.get(THEME_STORAGE_KEY) {
+                if theme.eq("light") {
+                    window.set_theme(Some(tauri::Theme::Light))?;
+                    apply_windows_frame_theme(&window, false);
+                } else if theme.eq("dark") {
+                    window.set_theme(Some(tauri::Theme::Dark))?;
+                    apply_windows_frame_theme(&window, true);
+                }
             }
-            let _ = app;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -481,7 +503,8 @@ pub fn run() {
             search_in_files,
             initial_open_file,
             register_file_associations,
-            set_app_theme,
+            set_theme_mode,
+            set_effective_theme,
             check_pandoc,
             export_with_pandoc,
             pdf_utils::check_pdf_engine,

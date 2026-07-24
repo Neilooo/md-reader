@@ -50,6 +50,7 @@
     "@tauri-apps/plugin-dialog": "^2.0.1",
     "@tauri-apps/plugin-fs": "^2.0.3",
     "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-store": "^2.4.4",
     "codemirror": "^6.0.2",
     "dompurify": "^3.2.3",
     "highlight.js": "^11.10.0",
