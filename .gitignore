@@ -43,6 +43,9 @@ yarn-error.log*
 # Local agent instructions
 AGENTS.md
 .claude/
+.codegraph/
+.omo/
+.opencode/
 
 # Kilo local tooling
 .kilo/
