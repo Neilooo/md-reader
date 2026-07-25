@@ -50,14 +50,23 @@ function onMiddle(id: string) {
       @mousedown.middle.prevent="onMiddle(item.id)"
     >
       <span v-if="item.isDirty" class="dot"></span>
-      <span v-if="item.isStale" class="stale-warning">⚠</span>
+      <span v-if="item.isStale" class="stale-warning">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </span>
       <span class="name">{{ item.name }}</span>
       <button
         class="close"
         :title="t('tabs.close')"
         @click.stop="emit('close', item.id)"
       >
-        ×
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
     </div>
   </div>
@@ -110,16 +119,17 @@ function onMiddle(id: string) {
 }
 .stale-warning {
   flex: 0 0 auto;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
   color: var(--banner-warning, #f59e0b);
 }
 .close {
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  line-height: 14px;
-  text-align: center;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: none;
   border-radius: 4px;
@@ -127,6 +137,7 @@ function onMiddle(id: string) {
   color: inherit;
   cursor: pointer;
   opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s;
 }
 .close:hover {
   opacity: 1;

@@ -80,10 +80,14 @@ function collapseAll() {
       <span>{{ t("toc.title") }}</span>
       <span v-if="headings.length" class="toc-actions">
         <button class="toc-action" @click="expandAll" :title="t('toc.expandAll')">
-          ⊕
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 10 12 7 9 10"/>
+          </svg>
         </button>
         <button class="toc-action" @click="collapseAll" :title="t('toc.collapseAll')">
-          ⊖
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 14 12 17 15 14"/>
+          </svg>
         </button>
       </span>
     </div>
@@ -103,7 +107,12 @@ function collapseAll() {
           class="toc-toggle"
           @click.stop="toggleCollapse(idx)"
         >
-          {{ collapsed.has(idx) ? "▶" : "▼" }}
+          <svg v-if="collapsed.has(idx)" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+          <svg v-else width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </span>
         <span v-else class="toc-toggle-spacer"></span>
         <span class="toc-text">{{ headings[idx].text }}</span>
@@ -138,14 +147,15 @@ function collapseAll() {
   gap: 2px;
 }
 .toc-action {
-  padding: 0 4px;
-  font-size: 12px;
-  line-height: 18px;
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
   color: var(--fg-muted);
   background: transparent;
   border: none;
   border-radius: 3px;
   cursor: pointer;
+  transition: color 0.12s, background-color 0.12s;
 }
 .toc-action:hover {
   color: var(--fg);
@@ -181,10 +191,13 @@ function collapseAll() {
 }
 .toc-toggle {
   flex: 0 0 16px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   user-select: none;
-  font-size: 10px;
+  color: var(--fg-muted);
+  transition: color 0.12s;
 }
 .toc-toggle-spacer {
   flex: 0 0 16px;

@@ -212,6 +212,14 @@ function askUnsaved(tab: Tab, mode: UnsavedDialogMode): Promise<UnsavedChoice> {
     return Promise.resolve("cancel");
   }
 
+  return new Promise((resolve) => {
+    dialogTab.value = tab;
+    unsavedDialogMode.value = mode;
+    unsavedResolve = resolve;
+    showUnsavedDialog.value = true;
+  });
+}
+
 function toggleAutoReload(path: string) {
   const normalized = path.replace(/\\/g, "/").toLowerCase();
   if (autoReloadWhitelist.value.includes(normalized)) {
@@ -225,7 +233,10 @@ function toggleAutoReload(path: string) {
 // @ts-expect-error - used in template
 async function onBannerReload() {
   const tab = bannerTab.value;
-  if (tab) await forceReloadTab(tab);
+  if (tab) {
+    await forceReloadTab(tab);
+    tab.staleSince = null; // 已加载到最新，清除过期标记
+  }
   closeBanner();
 }
 
@@ -239,14 +250,16 @@ async function onBannerViewDiff() {
     diffNewContent.value = newText;
     diffFileName.value = basename(tab.path);
     showDiffView.value = true;
-    closeBanner();
   } catch {
     /* ignore */
   }
+  // 不关闭 banner，也不清除 staleSince：用户查看完 diff 后 banner 仍然存在，等待后续操作
 }
 
 // @ts-expect-error - used in template
 function onBannerIgnore() {
+  const tab = bannerTab.value;
+  if (tab) tab.staleSince = null; // 已忽略，清除过期标记
   closeBanner();
 }
 
@@ -272,13 +285,6 @@ function showBannerForStaleTab(tab: Tab) {
   if (showBanner.value && bannerTab.value?.id === tab.id) return;
   bannerTab.value = tab;
   showBanner.value = true;
-}
-  return new Promise((resolve) => {
-    dialogTab.value = tab;
-    unsavedDialogMode.value = mode;
-    unsavedResolve = resolve;
-    showUnsavedDialog.value = true;
-  });
 }
 
 function resolveDialog(choice: UnsavedChoice) {
@@ -1115,7 +1121,10 @@ watch(
         :disabled="treeLoading"
         :title="t('app.refresh')"
       >
-        ↻
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+        </svg>
       </button>
       <button
         v-if="rootDir"
@@ -1123,131 +1132,42 @@ watch(
         @click="closeFolder"
         :title="t('app.closeFolder')"
       >
-        ✕
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
       <div class="filename" :title="currentFile">{{ displayFileName }}</div>
-      <button
-        class="btn"
-        @click="toggleEditorMode"
-        :disabled="!hasActiveFile"
-        :title="
-          (isEditing ? t('editor.preview') : t('editor.edit')) +
-            shortcutSuffix('toggle-mode')
-        "
-      >
-        {{ isEditing ? t("editor.preview") : t("editor.edit") }}
-        <svg
-          v-if="isEditing"
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <path
-            d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"
-          />
-          <circle cx="8" cy="8" r="2" />
-        </svg>
-        <svg
-          v-else
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <path d="M11 2l3 3L4 15H1v-3z" />
-          <path d="M8 6l2 2" />
-        </svg>
-      </button>
-      <button
-        class="btn"
-        @click="() => saveCurrentFile()"
-        :disabled="!hasActiveFile || !isDirty || saving"
-        :title="t('editor.save') + shortcutSuffix('save')"
-      >
-        {{ t("editor.save") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <path d="M3 2h8l4 4v9H3V2z" />
-          <path d="M11 2v4h4" />
-          <path d="M5 8h6v5H5z" />
-        </svg>
-      </button>
-      <button
-        class="btn"
-        @click="() => saveAsCurrentFile()"
-        :disabled="!hasActiveFile || saving"
-        :title="t('editor.saveAs') + shortcutSuffix('save-as')"
-      >
-        {{ t("editor.saveAs") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <path d="M3 2h6l4 4v8H3V2z" />
-          <path d="M9 2v4h4" />
-          <path d="M6 10h6M6 12h6" />
-        </svg>
-      </button>
-      <button
-        class="btn"
-        @click="isEditing ? editorRef?.openSearch() : find.open()"
-        :title="t('toolbar.find') + shortcutSuffix('find')"
-        :disabled="!hasActiveFile"
-      >
-        {{ t("toolbar.find") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <circle cx="6.5" cy="6.5" r="4.5" />
-          <path d="M10 10l4.5 4.5" />
-        </svg>
-      </button>
-      <div class="export-wrap">
+      <div class="toolbar-right">
         <button
           class="btn"
-          @click="showExportMenu = !showExportMenu"
-          :disabled="!canExport || exportBusy"
+          @click="toggleEditorMode"
+          :disabled="!hasActiveFile"
           :title="
-            exportBusy ? t('export.exportBusy') : t('export.exportShortcut')
+            (isEditing ? t('editor.preview') : t('editor.edit')) +
+              shortcutSuffix('toggle-mode')
           "
         >
-          {{ exportBusy ? "⏳" : t("toolbar.export") + " " }}
+          {{ isEditing ? t("editor.preview") : t("editor.edit") }}
           <svg
-            v-if="!exportBusy"
+            v-if="isEditing"
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <path
+              d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"
+            />
+            <circle cx="8" cy="8" r="2" />
+          </svg>
+          <svg
+            v-else
             width="16"
             height="16"
             viewBox="0 0 16 16"
@@ -1256,144 +1176,272 @@ watch(
             stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
-            style="vertical-align: -2px"
+            style="vertical-align: -2px; margin-left: 2px"
           >
-            <path d="M8 2v9M4 6l4-4 4 4" />
-            <path d="M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
+            <path d="M11 2l3 3L4 15H1v-3z" />
+            <path d="M8 6l2 2" />
           </svg>
         </button>
-        <div v-if="showExportMenu" class="export-menu" @click.stop>
-          <button
-            class="menu-item"
-            @click="
-              exportHtml();
-              showExportMenu = false;
-            "
+        <button
+          class="btn"
+          @click="() => saveCurrentFile()"
+          :disabled="!hasActiveFile || !isDirty || saving"
+          :title="t('editor.save') + shortcutSuffix('save')"
+        >
+          {{ t("editor.save") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="vertical-align: -2px; margin-left: 2px"
           >
-            <span class="mi-label">{{ t("export.html") }}</span>
-            <span class="mi-hint">{{ t("export.htmlHint") }}</span>
-          </button>
+            <path d="M3 2h8l4 4v9H3V2z" />
+            <path d="M11 2v4h4" />
+            <path d="M5 8h6v5H5z" />
+          </svg>
+        </button>
+        <button
+          class="btn"
+          @click="() => saveAsCurrentFile()"
+          :disabled="!hasActiveFile || saving"
+          :title="t('editor.saveAs') + shortcutSuffix('save-as')"
+        >
+          {{ t("editor.saveAs") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <path d="M3 2h6l4 4v8H3V2z" />
+            <path d="M9 2v4h4" />
+            <path d="M6 10h6M6 12h6" />
+          </svg>
+        </button>
+        <button
+          class="btn"
+          @click="isEditing ? editorRef?.openSearch() : find.open()"
+          :title="t('toolbar.find') + shortcutSuffix('find')"
+          :disabled="!hasActiveFile"
+        >
+          {{ t("toolbar.find") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <circle cx="6.5" cy="6.5" r="4.5" />
+            <path d="M10 10l4.5 4.5" />
+          </svg>
+        </button>
+        <div class="export-wrap">
           <button
-            class="menu-item"
-            :disabled="!pandocInfo?.available"
-            @click="exportDocx"
+            class="btn"
+            @click="showExportMenu = !showExportMenu"
+            :disabled="!canExport || exportBusy"
             :title="
-              !pandocInfo?.available ? t('export.docxRequiresPandoc') : ''
+              exportBusy ? t('export.exportBusy') : t('export.exportShortcut')
             "
           >
-            <span class="mi-label">{{ t("export.docx") }}</span>
-            <span class="mi-hint">
-              {{
-                pandocInfo?.available
-                  ? t("export.docxHint")
-                  : t("export.docxRequiresPandoc")
-              }}
-            </span>
+            {{ t("toolbar.export") + " " }}
+            <svg
+              v-if="exportBusy"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="vertical-align: -2px"
+            >
+              <line x1="12" y1="2" x2="12" y2="6"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+              <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+              <line x1="2" y1="12" x2="6" y2="12"/>
+              <line x1="18" y1="12" x2="22" y2="12"/>
+              <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+              <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+            </svg>
+            <svg
+              v-else
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="vertical-align: -2px"
+            >
+              <path d="M8 2v9M4 6l4-4 4 4" />
+              <path d="M2 12v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
+            </svg>
           </button>
-          <button
-            class="menu-item"
-            @click="exportPdf"
-            :title="
-              pdfEnginePath
-                ? t('app.usePath', { path: pdfEnginePath })
-                : t('app.specifyEdgePath')
-            "
-          >
-            <span class="mi-label">{{ t("export.pdf") }}</span>
-            <span class="mi-hint">
-              {{ pdfEnginePath ? t("export.pdfHint") : t("export.pdfNoEdge") }}
-            </span>
-          </button>
-          <div class="menu-divider"></div>
-          <button
-            class="menu-item"
-            @click="
-              doPrint();
-              showExportMenu = false;
-            "
-          >
-            <span class="mi-label">{{ t("export.print") }}</span>
-            <span class="mi-hint">{{ t("export.printHint") }}</span>
-          </button>
+          <div v-if="showExportMenu" class="export-menu" @click.stop>
+            <button
+              class="menu-item"
+              @click="
+                exportHtml();
+                showExportMenu = false;
+              "
+            >
+              <span class="mi-label">{{ t("export.html") }}</span>
+              <span class="mi-hint">{{ t("export.htmlHint") }}</span>
+            </button>
+            <button
+              class="menu-item"
+              :disabled="!pandocInfo?.available"
+              @click="exportDocx"
+              :title="
+                !pandocInfo?.available ? t('export.docxRequiresPandoc') : ''
+              "
+            >
+              <span class="mi-label">{{ t("export.docx") }}</span>
+              <span class="mi-hint">
+                {{
+                  pandocInfo?.available
+                    ? t("export.docxHint")
+                    : t("export.docxRequiresPandoc")
+                }}
+              </span>
+            </button>
+            <button
+              class="menu-item"
+              @click="exportPdf"
+              :title="
+                pdfEnginePath
+                  ? t('app.usePath', { path: pdfEnginePath })
+                  : t('app.specifyEdgePath')
+              "
+            >
+              <span class="mi-label">{{ t("export.pdf") }}</span>
+              <span class="mi-hint">
+                {{ pdfEnginePath ? t("export.pdfHint") : t("export.pdfNoEdge") }}
+              </span>
+            </button>
+            <div class="menu-divider"></div>
+            <button
+              class="menu-item"
+              @click="
+                doPrint();
+                showExportMenu = false;
+              "
+            >
+              <span class="mi-label">{{ t("export.print") }}</span>
+              <span class="mi-hint">{{ t("export.printHint") }}</span>
+            </button>
+          </div>
         </div>
+        <button
+          class="btn"
+          @click="showSettings = true"
+          :title="t('toolbar.settings') + shortcutSuffix('settings')"
+        >
+          {{ t("toolbar.settingsBtn") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <circle cx="8" cy="8" r="2.5" />
+            <path
+              d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"
+            />
+          </svg>
+        </button>
+        <button
+          class="btn"
+          @click="showFileTree = !showFileTree"
+          :title="t('app.toggleSidebar')"
+        >
+          {{ t("toolbar.sidebar") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <rect x="2" y="2" width="12" height="12" rx="1" />
+            <path d="M6 2v12" />
+          </svg>
+        </button>
+        <button
+          v-if="!tocOnLeft"
+          class="btn"
+          @click="showToc = !showToc"
+          :title="t('app.toggleToc')"
+        >
+          {{ t("toolbar.outline") }}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            style="vertical-align: -2px; margin-left: 2px"
+          >
+            <path d="M3 3h10M3 7h10M3 11h7" />
+          </svg>
+        </button>
+        <button
+          class="btn icon"
+          @click="toggleTheme"
+          :title="t('app.toggleTheme')"
+        >
+          <svg v-if="theme === 'light'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+        <button
+          class="btn lang"
+          @click="toggleLocale"
+          :title="t('app.switchLanguage')"
+        >
+          {{ locale === "zh-CN" ? "EN" : "中" }}
+        </button>
       </div>
-      <button
-        class="btn"
-        @click="showSettings = true"
-        :title="t('toolbar.settings') + shortcutSuffix('settings')"
-      >
-        {{ t("toolbar.settingsBtn") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <circle cx="8" cy="8" r="2.5" />
-          <path
-            d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"
-          />
-        </svg>
-      </button>
-      <button
-        class="btn"
-        @click="showFileTree = !showFileTree"
-        :title="t('app.toggleSidebar')"
-      >
-        {{ t("toolbar.sidebar") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <rect x="2" y="2" width="12" height="12" rx="1" />
-          <path d="M6 2v12" />
-        </svg>
-      </button>
-      <button
-        v-if="!tocOnLeft"
-        class="btn"
-        @click="showToc = !showToc"
-        :title="t('app.toggleToc')"
-      >
-        {{ t("toolbar.outline") }}
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          style="vertical-align: -2px; margin-left: 2px"
-        >
-          <path d="M3 3h10M3 7h10M3 11h7" />
-        </svg>
-      </button>
-      <button
-        class="btn icon"
-        @click="toggleTheme"
-        :title="t('app.toggleTheme')"
-      >
-        {{ theme === "light" ? "🌙" : "☀️" }}
-      </button>
-      <button
-        class="btn lang"
-        @click="toggleLocale"
-        :title="t('app.switchLanguage')"
-      >
-        {{ locale === "zh-CN" ? "EN" : "中" }}
-      </button>
     </header>
 
     <TabBar

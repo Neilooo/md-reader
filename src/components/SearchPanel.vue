@@ -123,9 +123,18 @@ watch(
         @click="(caseSensitive = !caseSensitive), run()"
         :title="t('find.caseSensitive')"
       >
-        Aa
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 5h11a4 4 0 010 8H3"/>
+          <path d="M3 19h11a4 4 0 000-8H3"/>
+          <path d="M15 5v14"/>
+        </svg>
       </button>
-      <button class="ic" @click="emit('close')" :title="t('find.close') + ' (Esc)'">✕</button>
+      <button class="ic" @click="emit('close')" :title="t('find.close') + ' (Esc)'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
     </div>
     <div class="status">
       <span v-if="loading">{{ t("search.searching") }}</span>

@@ -69,7 +69,10 @@ function onClose() {
           data-action="close"
           @click="onClose"
         >
-          ×
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
       </div>
       <div class="diff-content">
@@ -142,17 +145,18 @@ function onClose() {
 }
 
 .diff-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
-  line-height: 22px;
-  text-align: center;
-  font-size: 16px;
   padding: 0;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
 }
 
 .diff-close:hover {

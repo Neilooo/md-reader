@@ -39,7 +39,13 @@ const timeText = computed(() => {
     role="alert"
     aria-live="polite"
   >
-    <span class="banner-icon">⚠</span>
+    <span class="banner-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </span>
     <span class="banner-filename">{{ fileName }}</span>
     <span class="banner-message">
       {{ t("editor.externalChangedTitle") }}
@@ -68,7 +74,7 @@ const timeText = computed(() => {
         {{ t("banner.ignore") }}
       </button>
       <button
-        class="btn-link"
+        class="btn-secondary"
         data-action="auto-reload"
         @click="onAutoReload"
       >
@@ -81,7 +87,7 @@ const timeText = computed(() => {
 <style scoped>
 .banner {
   position: fixed;
-  top: 0;
+  top: 40px;
   left: 0;
   right: 0;
   z-index: 100;
@@ -93,6 +99,7 @@ const timeText = computed(() => {
   gap: 12px;
   animation: bannerSlideDown 0.25s ease-out;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 @keyframes bannerSlideDown {
@@ -108,7 +115,14 @@ const timeText = computed(() => {
 
 .banner-icon {
   flex: 0 0 auto;
-  font-size: 18px;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+}
+
+.banner-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .banner-filename {
@@ -150,6 +164,10 @@ const timeText = computed(() => {
   background: var(--link);
   color: #fff;
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-primary:hover {
+  filter: brightness(1.1);
 }
 
 .btn-secondary {
@@ -160,6 +178,7 @@ const timeText = computed(() => {
   background: transparent;
   color: var(--fg);
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .btn-secondary:hover {
@@ -175,6 +194,7 @@ const timeText = computed(() => {
   color: var(--fg-muted);
   cursor: pointer;
   text-decoration: underline;
+  transition: color 0.15s;
 }
 
 .btn-link:hover {
