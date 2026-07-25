@@ -6,6 +6,7 @@ import type { Tab } from "../composables/useTabs";
 const props = defineProps<{
   tabs: Tab[];
   activeTabId: string;
+  autoReload: boolean[];
 }>();
 
 const emit = defineEmits<{
@@ -21,6 +22,7 @@ const items = computed(() =>
     name: basename(tab.path),
     path: tab.path,
     isDirty: tab.isDirty,
+    isStale: tab.staleSince !== null && !tab.isDirty && !props.autoReload.includes(tab.path),
     active: tab.id === props.activeTabId,
   }))
 );
@@ -48,6 +50,7 @@ function onMiddle(id: string) {
       @mousedown.middle.prevent="onMiddle(item.id)"
     >
       <span v-if="item.isDirty" class="dot"></span>
+      <span v-if="item.isStale" class="stale-warning">⚠</span>
       <span class="name">{{ item.name }}</span>
       <button
         class="close"
@@ -104,6 +107,11 @@ function onMiddle(id: string) {
   height: 7px;
   border-radius: 50%;
   background: var(--shell-tab-active-border);
+}
+.stale-warning {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--banner-warning, #f59e0b);
 }
 .close {
   flex: 0 0 auto;
