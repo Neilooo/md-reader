@@ -133,10 +133,22 @@ const zhCN = {
       "当前文件在磁盘上发生了变化。可以重新加载磁盘内容，或保留当前未保存编辑。",
     reloadFromDisk: "重新加载",
     keepEditing: "保留编辑",
+    autoReloadWhitelist: "自动重载白名单",
     previewBeforeExport: "请先切换到预览模式再导出或打印",
     newFile: "新建 Markdown 文件",
     created: "已创建",
     createFailed: "创建失败",
+  },
+  banner: {
+    reload: "重新加载",
+    viewDiff: "查看差异",
+    ignore: "忽略",
+    autoReload: "启用自动重载",
+  },
+  diff: {
+    title: "差异对比",
+    close: "关闭",
+    noChanges: "无变化",
   },
   toc: {
     title: "大纲",

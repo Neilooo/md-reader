@@ -49,12 +49,12 @@ function makeTab(
 
 describe("TabBar", () => {
   let wrapper: ReturnType<typeof mount>;
-  let mockActivate: ReturnType<typeof vi.fn>;
-  let mockClose: ReturnType<typeof vi.fn>;
+  let mockActivate: (id: string) => void;
+  let mockClose: (id: string) => void;
 
   beforeEach(() => {
-    mockActivate = vi.fn();
-    mockClose = vi.fn();
+    mockActivate = vi.fn() as any;
+    mockClose = vi.fn() as any;
   });
 
   afterEach(() => {
@@ -65,7 +65,7 @@ describe("TabBar", () => {
   function renderTabBar(
     tabs: Tab[],
     activeTabId = "tab-1",
-    autoReload: boolean[] = []
+    autoReload: string[] = []
   ) {
     wrapper = mount(TabBar, {
       global: {

@@ -31,10 +31,10 @@ const i18n = createI18n({
 
 describe("DiffView", () => {
   let wrapper: ReturnType<typeof mount>;
-  let mockClose: ReturnType<typeof vi.fn>;
+  let mockClose: () => void;
 
   beforeEach(() => {
-    mockClose = vi.fn();
+    mockClose = vi.fn() as unknown as () => void;
   });
 
   afterEach(() => {

@@ -52,10 +52,10 @@ function makeTab(id = "tab-1", path = "/root/test.md", staleSince = null): Tab {
 
 describe("Banner", () => {
   let wrapper: ReturnType<typeof mount>;
-  let mockFn: ReturnType<typeof vi.fn>;
+  let mockFn: () => void;
 
   beforeEach(() => {
-    mockFn = vi.fn();
+    mockFn = vi.fn() as unknown as () => void;
   });
 
   afterEach(() => {

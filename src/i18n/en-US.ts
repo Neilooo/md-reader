@@ -137,10 +137,22 @@ const enUS = {
       "The current file changed on disk. Reload the disk version or keep your unsaved edits.",
     reloadFromDisk: "Reload",
     keepEditing: "Keep editing",
+    autoReloadWhitelist: "Auto-reload whitelist",
     previewBeforeExport: "Switch to preview mode before exporting or printing",
     newFile: "New Markdown file",
     created: "Created",
     createFailed: "Failed to create",
+  },
+  banner: {
+    reload: "Reload",
+    viewDiff: "View Diff",
+    ignore: "Ignore",
+    autoReload: "Enable Auto-Reload",
+  },
+  diff: {
+    title: "Diff View",
+    close: "Close",
+    noChanges: "No changes",
   },
   toc: {
     title: "Outline",

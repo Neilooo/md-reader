@@ -7,7 +7,6 @@ const props = defineProps<{
   newContent: string;
   fileName: string;
   visible: boolean;
-  onClose: () => void;
 }>();
 
 const emit = defineEmits<{

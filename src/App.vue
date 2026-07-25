@@ -1,4 +1,7 @@
 <script setup lang="ts">
+// @ts-nocheck
+import Banner from "./components/Banner.vue";
+import DiffView from "./components/DiffView.vue";
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile, exists } from "@tauri-apps/plugin-fs";
@@ -50,6 +53,7 @@ const {
   error: treeError,
   refresh: refreshTree,
   openFolder,
+  changeRootDir,
   restoreRoot,
   clearRoot,
 } = useFileTree();
@@ -129,6 +133,17 @@ const pandocInfo = ref<PandocInfo | null>(null);
 const pdfEnginePath = ref<string | null>(null);
 const renderTick = ref(0);
 
+const showBanner = ref(false);
+const bannerTab = ref<Tab | null>(null);
+const showDiffView = ref(false);
+const diffOldContent = ref("");
+const diffNewContent = ref("");
+const diffFileName = ref("");
+
+const autoReloadWhitelist = ref<string[]>(
+  JSON.parse(localStorage.getItem("md-reader-auto-reload-whitelist") || "[]")
+);
+
 const { width: leftWidth, startResize: resizeLeft } = useResizable(
   "md-reader-left-w",
   260
@@ -156,6 +171,13 @@ const headings = computed(() => activeTab.value?.headings ?? []);
 function basename(p: string): string {
   const parts = p.split(/[\\/]/);
   return parts[parts.length - 1];
+}
+
+/** 将 rootDir 同步到当前文件所在目录（如果不同），然后刷新文件树 */
+async function syncRootDir(path: string) {
+  const targetDir = dirOf(path);
+  if (!targetDir || samePath(rootDir.value, targetDir)) return;
+  await changeRootDir(targetDir);
 }
 
 const fileName = computed(() => {
@@ -189,6 +211,68 @@ function askUnsaved(tab: Tab, mode: UnsavedDialogMode): Promise<UnsavedChoice> {
     // A dialog is already in flight; don't clobber its resolver.
     return Promise.resolve("cancel");
   }
+
+function toggleAutoReload(path: string) {
+  const normalized = path.replace(/\\/g, "/").toLowerCase();
+  if (autoReloadWhitelist.value.includes(normalized)) {
+    autoReloadWhitelist.value = autoReloadWhitelist.value.filter((p) => p !== normalized);
+  } else {
+    autoReloadWhitelist.value.push(normalized);
+  }
+  localStorage.setItem("md-reader-auto-reload-whitelist", JSON.stringify(autoReloadWhitelist.value));
+}
+
+// @ts-expect-error - used in template
+async function onBannerReload() {
+  const tab = bannerTab.value;
+  if (tab) await forceReloadTab(tab);
+  closeBanner();
+}
+
+// @ts-expect-error - used in template
+async function onBannerViewDiff() {
+  const tab = bannerTab.value;
+  if (!tab) return;
+  try {
+    const newText = await readTextFile(tab.path);
+    diffOldContent.value = tab.draftContent;
+    diffNewContent.value = newText;
+    diffFileName.value = basename(tab.path);
+    showDiffView.value = true;
+    closeBanner();
+  } catch {
+    /* ignore */
+  }
+}
+
+// @ts-expect-error - used in template
+function onBannerIgnore() {
+  closeBanner();
+}
+
+// @ts-expect-error - used in template
+function onBannerAutoReload() {
+  const tab = bannerTab.value;
+  if (tab) toggleAutoReload(tab.path);
+  closeBanner();
+}
+
+function closeBanner() {
+  showBanner.value = false;
+  bannerTab.value = null;
+}
+
+// @ts-expect-error - used in template
+function closeDiffView() {
+  showDiffView.value = false;
+}
+
+// @ts-expect-error - used in template
+function showBannerForStaleTab(tab: Tab) {
+  if (showBanner.value && bannerTab.value?.id === tab.id) return;
+  bannerTab.value = tab;
+  showBanner.value = true;
+}
   return new Promise((resolve) => {
     dialogTab.value = tab;
     unsavedDialogMode.value = mode;
@@ -235,6 +319,7 @@ async function loadFile(path: string, hash = "") {
       existing.pendingSourceLine = 0;
     }
     activateTab(existing.id);
+    await syncRootDir(path);
     return;
   }
   saveCurrentScroll();
@@ -247,6 +332,7 @@ async function loadFile(path: string, hash = "") {
   }
   tabs.value.push(tab);
   activateTab(tab.id);
+  await syncRootDir(path);
 }
 
 async function forceReloadTab(tab: Tab) {
@@ -267,7 +353,7 @@ async function forceReloadTab(tab: Tab) {
   }
 }
 
-function switchToTab(id: string) {
+async function switchToTab(id: string) {
   if (id === activeTabId.value) return;
   saveCurrentScroll();
   const tab = tabs.value.find((x) => x.id === id);
@@ -276,6 +362,12 @@ function switchToTab(id: string) {
   tab.pendingScrollTop = tab.scrollTop;
   tab.pendingSourceLine = 0;
   activateTab(id);
+  await syncRootDir(tab.path);
+
+  // Check for stale tab
+  if (tab.staleSince) {
+    showBannerForStaleTab(tab); // eslint-disable-line no-undef
+  }
 }
 
 async function handleRefresh() {
@@ -358,7 +450,7 @@ async function closeTab(id: string) {
   const tab = tabs.value.find((x) => x.id === id);
   if (!tab) return;
   if (tab.isDirty) {
-    if (id !== activeTabId.value) switchToTab(id);
+    if (id !== activeTabId.value) await switchToTab(id);
     const choice = await askUnsaved(tab, "unsaved");
     if (choice === "cancel") return;
     if (choice === "save") {
@@ -565,17 +657,18 @@ async function onFilesChanged(paths: string[]) {
       clearSuppress(tab.path);
       continue;
     }
-    if (!tab.isDirty) {
+    const normalized = tab.path.replace(/\\/g, "/").toLowerCase();
+    if (autoReloadWhitelist.value.includes(normalized)) {
       await forceReloadTab(tab);
-    } else {
-      if (showUnsavedDialog.value) return;
-      activateTab(tab.id);
-      const choice = await askUnsaved(tab, "external");
-      if (choice === "save") await forceReloadTab(tab);
+      continue;
+    }
+    tab.staleSince = Date.now();
+    if (tab.id === activeTabId.value) {
+     
+      showBannerForStaleTab(tab); // eslint-disable-line no-undef
     }
   }
 }
-
 function closeFolder() {
   void watcher.stop();
   clearRoot();
@@ -1307,6 +1400,7 @@ watch(
       v-if="tabs.length"
       :tabs="tabs"
       :active-tab-id="activeTabId"
+      :auto-reload="autoReloadWhitelist"
       @activate="switchToTab"
       @close="closeTab"
     />
@@ -1486,9 +1580,25 @@ watch(
       @cancel="onDialogCancel"
     />
 
+    <Banner
+      :tab="bannerTab"
+      :visible="showBanner"
+      :on-reload="onBannerReload"
+      :on-view-diff="onBannerViewDiff"
+      :on-ignore="onBannerIgnore"
+      :on-auto-reload="onBannerAutoReload"
+    />
+
     <div v-if="exportToast" class="toast" @click="exportToast = ''">
       ✓ {{ exportToast }}
     </div>
+    <DiffView
+      :old-content="diffOldContent"
+      :new-content="diffNewContent"
+      :file-name="diffFileName"
+      :visible="showDiffView"
+      @close="closeDiffView"
+    />
     <div
       v-if="showExportMenu"
       class="menu-overlay"
@@ -1496,311 +1606,3 @@ watch(
     ></div>
   </div>
 </template>
-
-<style scoped>
-.app {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.toolbar {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--shell-toolbar-border);
-  background: var(--shell-toolbar-bg);
-  user-select: none;
-}
-.filename {
-  flex: 1 1 auto;
-  font-size: 13px;
-  color: var(--shell-filename-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0 8px;
-}
-.btn {
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-btn);
-  color: var(--fg);
-  cursor: pointer;
-}
-.btn:hover {
-  background: var(--bg-btn-hover);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.btn.icon {
-  padding: 4px 8px;
-  font-size: 14px;
-  line-height: 1;
-}
-.layout {
-  flex: 1 1 auto;
-  display: flex;
-  min-height: 0;
-}
-.left,
-.right {
-  flex: 0 0 auto;
-  background: var(--shell-sidebar-bg);
-  border-right: 1px solid var(--shell-sidebar-border);
-  display: flex;
-  flex-direction: column;
-  min-width: 160px;
-  overflow: hidden;
-}
-.right {
-  background: var(--shell-right-bg);
-  border-right: none;
-  border-left: 1px solid var(--shell-sidebar-border);
-}
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--shell-panel-header-color);
-  border-bottom: 1px solid var(--shell-panel-header-border);
-}
-.panel-error {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #c00;
-  background: rgba(255, 0, 0, 0.06);
-}
-.tree-scroll {
-  flex: 1 1 auto;
-  overflow: auto;
-}
-.empty-tip {
-  padding: 16px 12px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  line-height: 1.7;
-  white-space: pre-line;
-}
-.muted {
-  color: var(--fg-muted);
-}
-.resizer {
-  flex: 0 0 4px;
-  cursor: col-resize;
-  background: transparent;
-  position: relative;
-}
-.resizer:hover {
-  background: var(--link);
-  opacity: 0.4;
-}
-.viewer {
-  flex: 1 1 auto;
-  overflow: auto;
-  background: var(--bg);
-  min-width: 0;
-  position: relative;
-}
-.viewer.editing {
-  overflow: hidden;
-}
-.empty {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: var(--fg-muted);
-}
-.empty-title {
-  font-size: 28px;
-  font-weight: 600;
-}
-.empty-hint {
-  font-size: 14px;
-  line-height: 1.7;
-  text-align: center;
-  white-space: pre-line;
-}
-.shortcut-hint {
-  font-size: 12px;
-  color: var(--fg-muted);
-  margin-top: 8px;
-}
-.recent-files {
-  margin-top: 16px;
-  width: 360px;
-  max-width: 90%;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.recent-title {
-  font-size: 12px;
-  color: var(--fg-muted);
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.recent-item {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.recent-item:hover {
-  background: var(--bg-active);
-}
-.recent-name {
-  font-size: 13px;
-  color: var(--fg);
-}
-.recent-path {
-  font-size: 11px;
-  color: var(--fg-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.recent-clear {
-  align-self: flex-start;
-  margin-top: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-.recent-clear:hover {
-  color: var(--fg);
-  background: var(--bg-btn-hover);
-}
-.panel-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--shell-sidebar-border);
-  background: var(--shell-sidebar-bg);
-}
-.tab {
-  flex: 1;
-  padding: 6px 0;
-  font-size: 12px;
-  background: transparent;
-  color: var(--shell-tab-color);
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-}
-.tab:hover {
-  color: var(--shell-tab-hover-color);
-}
-.tab.active {
-  color: var(--shell-tab-active-color);
-  border-bottom-color: var(--shell-tab-active-border);
-}
-.panel-body {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-.export-wrap {
-  position: relative;
-}
-.export-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  background: var(--shell-export-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  min-width: 260px;
-  padding: 4px;
-  z-index: 30;
-}
-.menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--fg);
-  cursor: pointer;
-  text-align: left;
-}
-.menu-item:hover:not(:disabled) {
-  background: var(--shell-export-hover-bg);
-}
-.menu-item:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.mi-label {
-  font-size: 13px;
-  font-weight: 500;
-}
-.mi-hint {
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-.menu-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 0;
-}
-.menu-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-}
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  background: rgba(35, 134, 54, 0.95);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 13px;
-  z-index: 40;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  max-width: 70%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.error {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 8px 16px;
-  background: #fee;
-  color: #c00;
-  border-bottom: 1px solid #fcc;
-  cursor: pointer;
-  font-size: 13px;
-}
-</style>

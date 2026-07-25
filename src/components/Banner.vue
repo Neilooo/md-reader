@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { Tab } from "../composables/useTabs";
 
 const props = defineProps<{
-  tab: Tab;
+  tab: Tab | null;
   visible: boolean;
   onReload: () => void;
   onViewDiff: () => void;
@@ -12,22 +12,17 @@ const props = defineProps<{
   onAutoReload: () => void;
 }>();
 
-const emit = defineEmits<{
-  (e: "reload"): void;
-  (e: "view-diff"): void;
-  (e: "ignore"): void;
-  (e: "auto-reload"): void;
-}>();
 
 const { t } = useI18n();
 
 const fileName = computed(() => {
+  if (!props.tab) return "";
   const parts = props.tab.path.split(/[\\/]/);
   return parts[parts.length - 1];
 });
 
 const timeText = computed(() => {
-  if (!props.tab.staleSince) return "";
+  if (!props.tab || !props.tab.staleSince) return "";
   const diff = Date.now() - props.tab.staleSince;
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return `${seconds}秒前`;
@@ -39,7 +34,7 @@ const timeText = computed(() => {
 
 <template>
   <div
-    v-if="visible"
+    v-if="visible && tab"
     class="banner"
     role="alert"
     aria-live="polite"

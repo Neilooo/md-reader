@@ -6,7 +6,7 @@ import type { Tab } from "../composables/useTabs";
 const props = defineProps<{
   tabs: Tab[];
   activeTabId: string;
-  autoReload: boolean[];
+  autoReload: string[];
 }>();
 
 const emit = defineEmits<{

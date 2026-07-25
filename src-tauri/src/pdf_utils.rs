@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub fn current_millis() -> u128 {
     std::time::SystemTime::now()

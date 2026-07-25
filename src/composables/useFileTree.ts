@@ -95,6 +95,13 @@ async function openFolder(): Promise<string | null> {
   return null;
 }
 
+async function changeRootDir(newDir: string) {
+  if (!newDir || newDir === rootDir.value) return;
+  rootDir.value = newDir;
+  localStorage.setItem("md-reader-root", newDir);
+  await refresh();
+}
+
 async function restoreRoot(): Promise<void> {
   const saved = localStorage.getItem("md-reader-root");
   if (saved) {
@@ -118,6 +125,7 @@ export function useFileTree() {
     error,
     refresh,
     openFolder,
+    changeRootDir,
     restoreRoot,
     clearRoot,
   };

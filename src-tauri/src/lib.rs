@@ -499,7 +499,7 @@ pub struct PandocInfo {
 }
 
 fn pandoc_cmd() -> Command {
-    let mut cmd = Command::new("pandoc");
+    let cmd = Command::new("pandoc");
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
