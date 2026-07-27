@@ -45,6 +45,11 @@ const sampleNodes: TreeNode[] = [
   makeFile("README.md", "/root/README.md"),
 ];
 
+// 目录行是否处于折叠状态（.row.dir 上的 is-collapsed class）
+function isCollapsed(wrapper: VueWrapper, idx: number): boolean {
+  return Boolean(wrapper.findAll(".dir")[idx]?.classes("is-collapsed"));
+}
+
 // ─── 测试 ─────────────────────────────────────────────────────
 
 describe("FileTree", () => {
@@ -53,7 +58,7 @@ describe("FileTree", () => {
 
   function renderTree(nodes: TreeNode[], currentPath = "") {
     const w = mount(FileTree, {
-      props: { nodes, currentPath },
+      props: { nodes, currentPath, scrollContainer: mockScrollContainer },
       attachTo: document.body,
     });
     mockScrollContainer.appendChild(w.element);
@@ -66,17 +71,14 @@ describe("FileTree", () => {
     mockScrollIntoView = vi.fn();
     (window.HTMLElement.prototype as any).scrollIntoView = mockScrollIntoView;
     vi.clearAllMocks();
-    delete (window as any).__treeScrollContainer;
     mockScrollContainer = document.createElement("div");
     mockScrollContainer.className = "tree-scroll";
     document.body.appendChild(mockScrollContainer);
-    (window as any).__treeScrollContainer = mockScrollContainer;
   });
 
   afterEach(() => {
     wrapper?.unmount();
     mockScrollContainer.remove();
-    delete (window as any).__treeScrollContainer;
     delete (window.HTMLElement.prototype as any).scrollIntoView;
   });
 
@@ -130,11 +132,11 @@ describe("FileTree", () => {
       expect(active.exists()).toBe(true);
       expect(active.find(".name").text()).toBe("plugin.md");
 
-      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
+      // 2. "docs" 目录已展开
+      expect(isCollapsed(wrapper, 0)).toBe(false);
 
       // 3. "advanced" 目录已展开
-      const advancedCaret = wrapper.findAll(".dir")[1]?.find(".caret");
-      expect(advancedCaret?.text()).toBe("▼");
+      expect(isCollapsed(wrapper, 1)).toBe(false);
 
       // 4. scrollIntoView 被调用（定位目标文件）
       expect(mockScrollIntoView).toHaveBeenCalled();
@@ -146,12 +148,10 @@ describe("FileTree", () => {
       await wrapper.vm.$nextTick();
 
       // "docs" 目录展开
-      const docsCaret = wrapper.findAll(".dir")[0]?.find(".caret");
-      expect(docsCaret?.text()).toBe("▼");
+      expect(isCollapsed(wrapper, 0)).toBe(false);
 
       // "advanced" 目录不应展开
-      const advancedCaret = wrapper.findAll(".dir")[1]?.find(".caret");
-      expect(advancedCaret?.text()).toBe("▶");
+      expect(isCollapsed(wrapper, 1)).toBe(true);
     });
 
     it("works for root-level files without expanding any directory", async () => {
@@ -179,7 +179,7 @@ describe("FileTree", () => {
       expect(wrapper.find(".row.file.active").find(".name").text()).toBe(
         "guide.md"
       );
-      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
+      expect(isCollapsed(wrapper, 0)).toBe(false);
 
       await wrapper.setProps({ currentPath: "/root/docs/advanced/plugin.md" });
       await wrapper.vm.$nextTick();
@@ -188,7 +188,7 @@ describe("FileTree", () => {
       expect(wrapper.find(".row.file.active").find(".name").text()).toBe(
         "plugin.md"
       );
-      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▼");
+      expect(isCollapsed(wrapper, 1)).toBe(false);
       expect(mockScrollIntoView).toHaveBeenCalled();
     });
 
@@ -197,14 +197,14 @@ describe("FileTree", () => {
       await wrapper.vm.$nextTick();
       vi.clearAllMocks();
 
-      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
-      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▼");
+      expect(isCollapsed(wrapper, 0)).toBe(false);
+      expect(isCollapsed(wrapper, 1)).toBe(false);
 
       await wrapper.setProps({ currentPath: "/root/docs/guide.md" });
       await wrapper.vm.$nextTick();
 
-      expect(wrapper.findAll(".dir")[0]?.find(".caret")?.text()).toBe("▼");
-      expect(wrapper.findAll(".dir")[1]?.find(".caret")?.text()).toBe("▶");
+      expect(isCollapsed(wrapper, 0)).toBe(false);
+      expect(isCollapsed(wrapper, 1)).toBe(true);
     });
   });
 

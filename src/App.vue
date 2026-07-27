@@ -178,6 +178,9 @@ async function syncRootDir(path: string) {
   const targetDir = dirOf(path);
   if (!targetDir || samePath(rootDir.value, targetDir)) return;
   await changeRootDir(targetDir);
+  // 重启文件监听器以监听新根目录；否则新目录下的文件发生外部变更时将无法被检测到
+  // （useFileWatcher.start 内部会先 stop 旧的监听）
+  await startWatching(targetDir);
 }
 
 const fileName = computed(() => {
@@ -372,7 +375,7 @@ async function switchToTab(id: string) {
 
   // Check for stale tab
   if (tab.staleSince) {
-    showBannerForStaleTab(tab); // eslint-disable-line no-undef
+    showBannerForStaleTab(tab);
   }
 }
 
@@ -664,14 +667,15 @@ async function onFilesChanged(paths: string[]) {
       continue;
     }
     const normalized = tab.path.replace(/\\/g, "/").toLowerCase();
-    if (autoReloadWhitelist.value.includes(normalized)) {
+    if (autoReloadWhitelist.value.includes(normalized) && !tab.isDirty) {
+      // 白名单且当前无未保存编辑：自动重载
       await forceReloadTab(tab);
       continue;
     }
+    // 非白名单，或白名单但存在未保存编辑：提示用户，避免静默覆盖草稿（数据丢失）
     tab.staleSince = Date.now();
     if (tab.id === activeTabId.value) {
-     
-      showBannerForStaleTab(tab); // eslint-disable-line no-undef
+      showBannerForStaleTab(tab);
     }
   }
 }
@@ -982,10 +986,6 @@ watch(activeTabId, () => {
   if (!activeTab.value?.isEditing) nextTick(onScroll);
 });
 
-/** 将 .tree-scroll DOM 注入到 FileTree 的 __treeScrollContainer */
-watch(treeScrollEl, (el) => {
-  (window as any).__treeScrollContainer = el;
-});
 
 let unlistenDrop: (() => void) | null = null;
 let unlistenOpen: (() => void) | null = null;
@@ -1495,6 +1495,7 @@ watch(
               v-if="rootDir"
               :nodes="tree"
               :current-path="currentFile"
+              :scroll-container="treeScrollEl"
               @open="loadFile"
             />
             <div v-else class="empty-tip">{{ t("app.openFolderHint") }}</div>

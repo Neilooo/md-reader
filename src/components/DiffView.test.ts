@@ -98,6 +98,30 @@ describe("DiffView", () => {
       expect(removedLines.length).toBeGreaterThan(0);
       expect(removedLines[0]?.text()).toContain("World");
     });
+
+    it("正确处理中间插入（不产生错误的增删行）", () => {
+      renderDiff("a\nb\nc\n", "a\nX\nb\nc\n");
+      const added = wrapper
+        .findAll(".diff-line.added")
+        .map((el) => el.find(".diff-text").text());
+      const removed = wrapper
+        .findAll(".diff-line.removed")
+        .map((el) => el.find(".diff-text").text());
+      expect(added).toEqual(["X"]);
+      expect(removed).toEqual([]);
+    });
+
+    it("正确处理中间删除（不产生错误的增删行）", () => {
+      renderDiff("a\nX\nb\nc\n", "a\nb\nc\n");
+      const added = wrapper
+        .findAll(".diff-line.added")
+        .map((el) => el.find(".diff-text").text());
+      const removed = wrapper
+        .findAll(".diff-line.removed")
+        .map((el) => el.find(".diff-text").text());
+      expect(added).toEqual([]);
+      expect(removed).toEqual(["X"]);
+    });
   });
 
   describe("事件", () => {

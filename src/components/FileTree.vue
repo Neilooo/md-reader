@@ -7,9 +7,11 @@ const props = withDefaults(
     nodes: TreeNode[];
     currentPath: string;
     depth?: number;
+    scrollContainer?: HTMLElement | null;
   }>(),
   {
     depth: 0,
+    scrollContainer: null,
   }
 );
 
@@ -57,7 +59,7 @@ watch(
 
     nextTick(() => {
       setTimeout(() => {
-        const container = (window as any).__treeScrollContainer as HTMLElement | null;
+        const container = props.scrollContainer;
         if (container) {
           const active = container.querySelector(".row.file.active") as HTMLElement | null;
           if (active) active.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -74,6 +76,7 @@ watch(
       <template v-if="node.isDir">
         <div
           class="row dir"
+          :class="{ 'is-collapsed': collapsed[node.path] }"
           :style="{ paddingLeft: (depth || 0) * 12 + 8 + 'px' }"
           @click="toggle(node.path)"
         >
@@ -92,6 +95,7 @@ watch(
           :nodes="node.children"
           :current-path="currentPath"
           :depth="(depth || 0) + 1"
+          :scroll-container="scrollContainer"
           @open="(p) => emit('open', p)"
         />
       </template>

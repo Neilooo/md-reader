@@ -20,33 +20,61 @@ interface DiffLine {
   text: string;
 }
 
-const diffLines = computed<DiffLine[]>(() => {
-  if (!props.visible) return [];
+/**
+ * 基于 LCS（最长公共子序列）计算行级差异。
+ * 相比逐行下标比较，能正确处理中间插入/删除，避免产生错误的增删行。
+ */
+function computeDiff(oldText: string, newText: string): DiffLine[] {
+  const a = oldText.split("\n");
+  const b = newText.split("\n");
+  const m = a.length;
+  const n = b.length;
 
-  const oldLines = props.oldContent.split("\n");
-  const newLines = props.newContent.split("\n");
-  const lines: DiffLine[] = [];
+  // 超大文件保护：超过阈值时退化为整体替换，避免 O(m*n) 内存膨胀卡死
+  if (m * n > 4_000_000) {
+    const lines: DiffLine[] = [];
+    for (const line of a) lines.push({ type: "removed", text: line });
+    for (const line of b) lines.push({ type: "added", text: line });
+    return lines;
+  }
 
-  for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
-    const oldText = i < oldLines.length ? oldLines[i] : "";
-    const newText = i < newLines.length ? newLines[i] : "";
-
-    if (oldText === newText) {
-      lines.push({ type: "unchanged", text: newText });
-    } else if (i < newLines.length && i < oldLines.length) {
-      // Same index but different content: show both
-      lines.push({ type: "added", text: newText });
-      lines.push({ type: "removed", text: oldText });
-    } else if (i < newLines.length) {
-      // New line exists but old doesn't
-      lines.push({ type: "added", text: newText });
-    } else {
-      // Old line exists but new doesn't
-      lines.push({ type: "removed", text: oldText });
+  // dp[i][j] = a[i..] 与 b[j..] 的 LCS 长度
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array<number>(n + 1).fill(0)
+  );
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      dp[i][j] =
+        a[i] === b[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 
-  return lines;
+  const result: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      result.push({ type: "unchanged", text: a[i] });
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      result.push({ type: "removed", text: a[i] });
+      i++;
+    } else {
+      result.push({ type: "added", text: b[j] });
+      j++;
+    }
+  }
+  while (i < m) result.push({ type: "removed", text: a[i++] });
+  while (j < n) result.push({ type: "added", text: b[j++] });
+  return result;
+}
+
+const diffLines = computed<DiffLine[]>(() => {
+  if (!props.visible) return [];
+  return computeDiff(props.oldContent, props.newContent);
 });
 
 const hasChanges = computed(() =>

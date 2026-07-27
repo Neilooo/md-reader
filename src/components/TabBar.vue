@@ -22,7 +22,10 @@ const items = computed(() =>
     name: basename(tab.path),
     path: tab.path,
     isDirty: tab.isDirty,
-    isStale: tab.staleSince !== null && !tab.isDirty && !props.autoReload.includes(tab.path),
+    isStale:
+      tab.staleSince !== null &&
+      !tab.isDirty &&
+      !props.autoReload.includes(tab.path.replace(/\\/g, "/").toLowerCase()),
     active: tab.id === props.activeTabId,
   }))
 );
