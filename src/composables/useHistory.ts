@@ -55,10 +55,15 @@ function clearRecent() {
 function saveScroll(path: string, top: number) {
   if (!path) return;
   scrollMap.value[path] = top;
-  const recentPaths = new Set(recent.value.map((x) => x.path));
-  for (const key of Object.keys(scrollMap.value)) {
-    if (Object.keys(scrollMap.value).length <= MAX_SCROLL_ENTRIES) break;
-    if (!recentPaths.has(key)) delete scrollMap.value[key];
+  // 超出容量上限时，移除最近记录中不存在的旧 key
+  while (Object.keys(scrollMap.value).length > MAX_SCROLL_ENTRIES) {
+    const recentPaths = new Set(recent.value.map((x) => x.path));
+    for (const key of Object.keys(scrollMap.value)) {
+      if (!recentPaths.has(key)) {
+        delete scrollMap.value[key];
+        break;
+      }
+    }
   }
   localStorage.setItem(STORAGE_SCROLL, JSON.stringify(scrollMap.value));
 }

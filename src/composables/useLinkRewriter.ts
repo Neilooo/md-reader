@@ -1,5 +1,8 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 
+/** 标记已注册过内部链接点击事件的 anchor 元素，避免重复绑定 */
+const linkedAnchors = new WeakSet<HTMLElement>();
+
 function dirname(path: string): string {
   const i = path.replace(/\\/g, "/").lastIndexOf("/");
   return i < 0 ? "" : path.slice(0, i);
@@ -67,19 +70,22 @@ export function rewriteImagesAndLinks(
     const href = a.getAttribute("href") || "";
     if (!href || isExternal(href)) return;
     if (href.startsWith("#")) {
-      a.addEventListener(
-        "click",
-        (e) => {
-          e.preventDefault();
-          const id = href.slice(1);
-          if (!id) return;
-          const target = container.querySelector<HTMLElement>(
-            `#${CSS.escape(id)}`
-          );
-          target?.scrollIntoView({ behavior: "smooth", block: "start" });
-        },
-        { once: false }
-      );
+      if (!linkedAnchors.has(a)) {
+        a.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+            const id = href.slice(1);
+            if (!id) return;
+            const target = container.querySelector<HTMLElement>(
+              `#${CSS.escape(id)}`
+            );
+            target?.scrollIntoView({ behavior: "smooth", block: "start" });
+          },
+          { once: false }
+        );
+        linkedAnchors.add(a);
+      }
       return;
     }
     const hashIdx = href.indexOf("#");
@@ -91,10 +97,13 @@ export function rewriteImagesAndLinks(
       isAbsoluteWin(pathPart) || isAbsoluteUnix(pathPart)
         ? pathPart
         : joinPath(baseDir, pathPart);
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      onInternalLink(abs, hash);
-    });
+    if (!linkedAnchors.has(a)) {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        onInternalLink(abs, hash);
+      });
+      linkedAnchors.add(a);
+    }
     a.classList.add("internal-link");
   });
 }

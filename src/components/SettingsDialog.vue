@@ -224,8 +224,8 @@ async function registerAssociations() {
         <input
           type="range"
           :value="settings.fontSize"
-          min="12"
-          max="24"
+          min="10"
+          max="28"
           step="1"
           @input="
             (e) => setFontSize(Number((e.target as HTMLInputElement).value))

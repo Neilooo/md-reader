@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
 
+#[cfg(windows)]
+use std::process::Command;
+
 pub fn current_millis() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

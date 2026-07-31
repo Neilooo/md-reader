@@ -166,6 +166,10 @@ function renderFrontMatter(block: FrontMatterBlock): string {
 }
 
 export function extractHeadings(source: string): Heading[] {
+  // 超大文件跳过全量 token 解析，仅提取前 100 行的 heading
+  if (source.length > 200_000) {
+    return extractHeadingsFallback(source);
+  }
   const block = splitFrontMatter(source);
   const body = block ? block.body : source;
   const env = { sourceLineOffset: block ? block.bodyStartLine - 1 : 0 };
@@ -180,6 +184,22 @@ export function extractHeadings(source: string): Heading[] {
       const text = next && next.type === "inline" ? next.content : "";
       headings.push({ level, text, id: idAttr });
     }
+  }
+  return headings;
+}
+
+/** 大文件 fallback：逐行扫描 heading，避免 md.parse() 的全量 token 化开销 */
+function extractHeadingsFallback(source: string): Heading[] {
+  const headings: Heading[] = [];
+  const block = splitFrontMatter(source);
+  const body = block ? block.body : source;
+  for (const line of body.split(/\r?\n/).slice(0, 500)) {
+    const m = line.match(/^(#{1,6})\s+(.*)$/);
+    if (!m) continue;
+    const level = m[1].length;
+    const text = m[2].trim();
+    const id = encodeURIComponent(text.toLowerCase().replace(/\s+/g, "-"));
+    headings.push({ level, text, id });
   }
   return headings;
 }

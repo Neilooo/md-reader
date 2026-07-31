@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// @ts-nocheck
+// @ts-check
 import Banner from "./components/Banner.vue";
 import DiffView from "./components/DiffView.vue";
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
@@ -236,7 +236,6 @@ function toggleAutoReload(path: string) {
   localStorage.setItem("md-reader-auto-reload-whitelist", JSON.stringify(autoReloadWhitelist.value));
 }
 
-// @ts-expect-error - used in template
 async function onBannerReload() {
   const tab = bannerTab.value;
   if (tab) {
@@ -246,7 +245,6 @@ async function onBannerReload() {
   closeBanner();
 }
 
-// @ts-expect-error - used in template
 async function onBannerViewDiff() {
   const tab = bannerTab.value;
   if (!tab) return;
@@ -262,14 +260,12 @@ async function onBannerViewDiff() {
   // 不关闭 banner，也不清除 staleSince：用户查看完 diff 后 banner 仍然存在，等待后续操作
 }
 
-// @ts-expect-error - used in template
 function onBannerIgnore() {
   const tab = bannerTab.value;
   if (tab) tab.staleSince = null; // 已忽略，清除过期标记
   closeBanner();
 }
 
-// @ts-expect-error - used in template
 function onBannerAutoReload() {
   const tab = bannerTab.value;
   if (tab) toggleAutoReload(tab.path);
@@ -281,12 +277,10 @@ function closeBanner() {
   bannerTab.value = null;
 }
 
-// @ts-expect-error - used in template
 function closeDiffView() {
   showDiffView.value = false;
 }
 
-// @ts-expect-error - used in template
 function showBannerForStaleTab(tab: Tab) {
   if (showBanner.value && bannerTab.value?.id === tab.id) return;
   bannerTab.value = tab;
@@ -513,7 +507,7 @@ async function closeTabRight(targetId: string): Promise<void> {
 async function closeTabLeft(targetId: string): Promise<void> {
   const idx = tabs.value.findIndex((t) => t.id === targetId);
   if (idx <= 0) return;
-  const toClose = tabs.value.slice(0, idx).toReversed();
+  const toClose = tabs.value.slice(0, idx).reverse();
   for (const tab of toClose) {
     activateTab(tab.id);
     if (tab.isDirty) {
@@ -554,18 +548,18 @@ function getPreviewTopSourceLine(): number {
   const items = Array.from(
     body.querySelectorAll<HTMLElement>("[data-source-line]")
   );
-  let current = 1;
+  let topLine = 1;
   for (const item of items) {
     const line = Number(item.dataset.sourceLine || "0");
     if (!line) continue;
     const top = item.getBoundingClientRect().top - containerTop;
     if (top <= 16) {
-      current = line;
+      topLine = line;
     } else {
-      return current === 1 ? line : current;
+      return topLine;
     }
   }
-  return current;
+  return topLine;
 }
 
 function scrollPreviewToSourceLine(line: number) {

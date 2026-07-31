@@ -42,7 +42,6 @@ const host = ref<HTMLElement | null>(null);
 const searchCounter = ref({ visible: false, current: 0, total: 0 });
 let view: EditorView | null = null;
 let searchCounterTimer: number | null = null;
-let lastSearchKey = "";
 
 const themeCompartment = new Compartment();
 const editableCompartment = new Compartment();
@@ -123,29 +122,11 @@ function editableExtension() {
   return EditorView.editable.of(!props.readonly);
 }
 
-function searchKey(): string {
-  if (!view) return "";
-  if (!searchPanelOpen(view.state)) return "closed";
-  const query = getSearchQuery(view.state);
-  return JSON.stringify({
-    search: query.search,
-    caseSensitive: query.caseSensitive,
-    literal: query.literal,
-    regexp: query.regexp,
-    wholeWord: query.wholeWord,
-    valid: query.valid,
-    docLength: view.state.doc.length,
-  });
-}
-
 function updateSearchCounter() {
   if (!view || !searchPanelOpen(view.state)) {
-    lastSearchKey = "closed";
     searchCounter.value = { visible: false, current: 0, total: 0 };
     return;
   }
-  const key = searchKey();
-  lastSearchKey = key;
   const query = getSearchQuery(view.state);
   if (!query.valid || !query.search) {
     searchCounter.value = { visible: true, current: 0, total: 0 };
@@ -172,12 +153,8 @@ function updateSearchCounter() {
   };
 }
 
-function scheduleSearchCounterUpdate(force = false) {
+function scheduleSearchCounterUpdate() {
   if (!view) return;
-  if (!force) {
-    const nextKey = searchKey();
-    if (nextKey === lastSearchKey && !view.state.selection.main.empty) return;
-  }
   if (searchCounterTimer !== null) window.clearTimeout(searchCounterTimer);
   searchCounterTimer = window.setTimeout(() => {
     searchCounterTimer = null;
@@ -288,9 +265,7 @@ function createEditor() {
             update.selectionSet ||
             update.transactions.length
           ) {
-            scheduleSearchCounterUpdate(
-              update.docChanged || update.selectionSet
-            );
+            scheduleSearchCounterUpdate();
           }
         }),
       ],

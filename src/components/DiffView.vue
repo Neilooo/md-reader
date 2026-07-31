@@ -22,7 +22,7 @@ interface DiffLine {
 
 /**
  * 基于 LCS（最长公共子序列）计算行级差异。
- * 相比逐行下标比较，能正确处理中间插入/删除，避免产生错误的增删行。
+ * 使用 O(m×n) DP 表，由 4M 保护阈值控制大文件退化。
  */
 function computeDiff(oldText: string, newText: string): DiffLine[] {
   const a = oldText.split("\n");
@@ -30,7 +30,7 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
   const m = a.length;
   const n = b.length;
 
-  // 超大文件保护：超过阈值时退化为整体替换，避免 O(m*n) 内存膨胀卡死
+  // 超大文件保护：超过阈值时退化为整体替换，避免 O(m×n) 内存膨胀卡死
   if (m * n > 4_000_000) {
     const lines: DiffLine[] = [];
     for (const line of a) lines.push({ type: "removed", text: line });
@@ -40,7 +40,7 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
 
   // dp[i][j] = a[i..] 与 b[j..] 的 LCS 长度
   const dp: number[][] = Array.from({ length: m + 1 }, () =>
-    new Array<number>(n + 1).fill(0)
+    new Array(n + 1).fill(0)
   );
   for (let i = m - 1; i >= 0; i--) {
     for (let j = n - 1; j >= 0; j--) {

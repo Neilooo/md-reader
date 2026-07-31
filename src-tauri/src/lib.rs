@@ -92,7 +92,7 @@ fn list_md_files(root: String) -> Result<Vec<MdFile>, String> {
     {
         let path = entry.path();
         if path.is_file() && is_markdown_file(path) {
-            let meta = match entry.metadata() {
+        let meta = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -205,6 +205,10 @@ fn search_in_files(
     if q.is_empty() {
         return Ok(Vec::new());
     }
+    // 单字符查询匹配过多结果，限制长度避免无意义的全量扫描
+    if q.len() < 2 {
+        return Err("搜索词过短，请输入至少 2 个字符".into());
+    }
     let needle = if case_sensitive {
         q.to_string()
     } else {
@@ -212,6 +216,8 @@ fn search_in_files(
     };
     let limit = max_results.unwrap_or(500);
     let mut results = Vec::new();
+    // 跳过超大文件（>500KB），避免内存占用过高和响应缓慢
+    const MAX_FILE_SIZE: u64 = 512 * 1024;
 
     'outer: for entry in WalkDir::new(&root_path)
         .follow_links(false)
@@ -226,6 +232,11 @@ fn search_in_files(
         if !path.is_file() || !is_markdown_file(path) {
             continue;
         }
+        let _meta = match entry.metadata() {
+            Ok(m) if m.len() > MAX_FILE_SIZE => continue, // 跳过超大文件
+            Ok(m) => m,
+            Err(_) => continue,
+        };
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => continue,

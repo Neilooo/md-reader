@@ -45,16 +45,27 @@ fn format_output_diagnostics(output: &Output) -> String {
     )
 }
 
-fn wait_for_valid_pdf(path: &Path, timeout_ms: u64) -> std::io::Result<u64> {
+/// 等待 PDF 文件达到有效大小。返回实际大小或区分类型的错误。
+enum PdfWaitResult {
+    Ok(u64),
+    FileTooSmall(u64),
+    Io(std::io::Error),
+}
+
+fn wait_for_valid_pdf(path: &Path, timeout_ms: u64) -> PdfWaitResult {
     let start = std::time::Instant::now();
     loop {
         match std::fs::metadata(path) {
-            Ok(meta) if meta.len() > 1024 => return Ok(meta.len()),
-            Ok(_) | Err(_) if start.elapsed().as_millis() < timeout_ms as u128 => {
+            Ok(meta) if meta.len() > 1024 => return PdfWaitResult::Ok(meta.len()),
+            Ok(meta) if start.elapsed().as_millis() >= timeout_ms as u128 => {
+                return PdfWaitResult::FileTooSmall(meta.len());
+            }
+            Err(e) if start.elapsed().as_millis() >= timeout_ms as u128 => {
+                return PdfWaitResult::Io(e);
+            }
+            _ => {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
-            Ok(meta) => return Ok(meta.len()),
-            Err(e) => return Err(e),
         }
     }
 }
@@ -157,7 +168,7 @@ pub fn export_pdf_via_edge(
 
         if output.status.success() {
             match wait_for_valid_pdf(&temp_pdf, 10_000) {
-                Ok(size) if size > 1024 => {
+                PdfWaitResult::Ok(size) if size > 1024 => {
                     std::fs::copy(&temp_pdf, &final_out).map_err(|e| {
                         let _ = std::fs::remove_file(&temp_pdf);
                         let _ = std::fs::remove_dir_all(&user_data_dir);
@@ -173,16 +184,25 @@ pub fn export_pdf_via_edge(
                         edge_path: edge.to_string_lossy().to_string(),
                     });
                 }
-                Ok(size) => {
+                PdfWaitResult::FileTooSmall(size) => {
                     diagnostics.push(format!(
-                        "{}\n等待 PDF 落盘后文件仍过小: {} bytes",
+                        "{}\nPDF 文件已生成但过小（可能损坏）: {} bytes",
                         detail, size
                     ));
                 }
-                Err(_) => diagnostics.push(format!(
-                    "{}\n等待 10 秒后 PDF 文件仍未生成",
-                    detail
-                )),
+                PdfWaitResult::Io(e) => {
+                    diagnostics.push(format!(
+                        "{}\n读取 PDF 元数据失败: {}",
+                        detail, e
+                    ));
+                }
+                PdfWaitResult::Ok(size) => {
+                    // 理论上 wait_for_valid_pdf 不会返回 ≤ 1024 的 Ok，但保留兜底
+                    diagnostics.push(format!(
+                        "{}\nPDF 文件大小异常: {} bytes",
+                        detail, size
+                    ));
+                }
             }
         } else {
             diagnostics.push(detail);
