@@ -47,6 +47,7 @@ let lastSearchKey = "";
 const themeCompartment = new Compartment();
 const editableCompartment = new Compartment();
 const keymapCompartment = new Compartment();
+const fontFamilyCompartment = new Compartment();
 const { getBinding, toCodeMirror, overrides } = useShortcuts();
 const replacePanelTheme = EditorView.baseTheme({
   ".cm-panel.cm-search [name=replace]": {
@@ -64,8 +65,6 @@ const editorBaseTheme = EditorView.theme({
     color: "var(--fg)",
   },
   ".cm-scroller": {
-    fontFamily:
-      'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Consolas, monospace',
     fontSize: "var(--editor-font-size, 14px)",
     lineHeight: "1.65",
   },
@@ -244,6 +243,24 @@ function buildKeymap() {
   );
 }
 
+function getEditorFontFamily(): string {
+  return (
+    // eslint-disable-next-line no-undef
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--editor-font-family")
+      .trim() ||
+    'ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Consolas, monospace'
+  );
+}
+
+function fontFamilyExtension(): Extension {
+  return EditorView.theme({
+    ".cm-scroller": {
+      fontFamily: getEditorFontFamily(),
+    },
+  });
+}
+
 function createEditor() {
   if (!host.value) return;
   view = new EditorView({
@@ -256,6 +273,7 @@ function createEditor() {
         markdown(),
         search({ top: true }),
         replacePanelTheme,
+        fontFamilyCompartment.of(fontFamilyExtension()),
         keymapCompartment.of(buildKeymap()),
         keymap.of([indentWithTab, ...searchKeymap]),
         themeCompartment.of(themeExtension()),
@@ -411,10 +429,22 @@ async function insertPastedImage(file: File, pos: number) {
 onMounted(() => {
   createEditor();
   host.value?.addEventListener("paste", handlePaste, true);
+
+  // Sync editor font family when the CSS variable changes
+  // eslint-disable-next-line no-undef
+  const fontObserver = new MutationObserver(() => {
+    if (view) {
+      view.dispatch({ effects: fontFamilyCompartment.reconfigure(fontFamilyExtension()) });
+    }
+  });
+  fontObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+  // Store for cleanup
+  (host.value as any).__fontObserver = fontObserver;
 });
 
 onBeforeUnmount(() => {
   host.value?.removeEventListener("paste", handlePaste, true);
+  (host.value as any).__fontObserver?.disconnect();
   view?.destroy();
   view = null;
   if (searchCounterTimer !== null) {
