@@ -428,6 +428,11 @@ fn register_file_associations() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn get_system_fonts() -> Result<Vec<tauri_plugin_system_fonts::SystemFont>, String> {
+    Ok(tauri_plugin_system_fonts::get_system_fonts().await)
+}
+
+#[tauri::command]
 fn set_app_theme(window: tauri::WebviewWindow, theme: String) -> Result<(), String> {
     let is_dark = theme == "dark";
     window
@@ -464,6 +469,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_system_fonts::init())
         .setup(|app| {
             use tauri::Manager;
             app.manage(WatcherState::default());
@@ -482,6 +488,7 @@ pub fn run() {
             initial_open_file,
             register_file_associations,
             set_app_theme,
+            get_system_fonts,
             check_pandoc,
             export_with_pandoc,
             pdf_utils::check_pdf_engine,

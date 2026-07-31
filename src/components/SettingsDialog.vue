@@ -154,19 +154,42 @@ const emit = defineEmits<{ (e: "close"): void }>();
 const showShortcuts = ref(false);
 watch(
   () => props.visible,
-  (v) => {
+  async (v) => {
     if (!v) showShortcuts.value = false;
+    else await loadFonts();
   }
 );
+
+const systemFonts = ref<{ name: string }[]>([]);
+
+async function loadFonts() {
+  if (systemFonts.value.length > 0) return;
+  systemFonts.value = await loadSystemFonts();
+}
+
+const allFontOptions = computed(() => {
+  const opts = fontOptions.value as Array<{ value: string; label: string }>;
+  return [...opts, ...systemFonts.value.map((f) => ({ value: f.name, label: f.name }))];
+});
+
+const allEditorFontOptions = computed(() => {
+  const opts = editorFontOptions.value as Array<{ value: string; label: string }>;
+  return [...opts, ...systemFonts.value.map((f) => ({ value: f.name, label: f.name }))];
+});
 
 const {
   settings,
   fontOptions,
+  editorFontOptions,
+  loadSystemFonts,
   setFontSize,
   setLineHeight,
   setMaxWidth,
   setFontFamily,
+  setFontCustom,
   setEditorFontSize,
+  setEditorFontFamily,
+  setEditorFontCustom,
   setTocPosition,
   reset,
 } = useReadingSettings();
@@ -259,18 +282,67 @@ async function registerAssociations() {
 
       <div class="row">
         <label>{{ t("settings.fontFamily") }}</label>
-        <select
-          :value="settings.fontFamily"
-          @change="(e) => setFontFamily((e.target as HTMLSelectElement).value)"
-        >
-          <option
-            v-for="opt in fontOptions"
-            :key="opt.value"
-            :value="opt.value"
+        <div class="font-select-wrapper">
+          <select
+            :value="settings.fontFamily"
+            @change="(e) => setFontFamily((e.target as HTMLSelectElement).value)"
           >
-            {{ opt.label }}
-          </option>
-        </select>
+            <option
+              v-for="opt in allFontOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" v-if="settings.fontFamily === 'custom'">
+        <label>{{ t("settings.fontCustom") }}</label>
+        <input
+          type="text"
+          :value="settings.fontCustom"
+          @input="
+            (e) => setFontCustom((e.target as HTMLInputElement).value)
+          "
+          :placeholder="t('settings.fontCustomPlaceholder')"
+          class="text-input"
+        />
+      </div>
+
+      <div class="row">
+        <label>{{ t("settings.editorFontFamily") }}</label>
+        <div class="font-select-wrapper">
+          <select
+            :value="settings.editorFontFamily"
+            @change="
+              (e) =>
+                setEditorFontFamily((e.target as HTMLSelectElement).value)
+            "
+          >
+            <option
+              v-for="opt in allEditorFontOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" v-if="settings.editorFontFamily === 'custom'">
+        <label>{{ t("settings.editorFontCustom") }}</label>
+        <input
+          type="text"
+          :value="settings.editorFontCustom"
+          @input="
+            (e) => setEditorFontCustom((e.target as HTMLInputElement).value)
+          "
+          :placeholder="t('settings.fontCustomPlaceholder')"
+          class="text-input"
+        />
       </div>
 
       <div class="row">
@@ -455,6 +527,42 @@ select {
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  max-height: 200px;
+}
+.font-select-wrapper {
+  grid-column: 2 / span 2;
+  position: relative;
+  max-width: 260px;
+}
+.font-select-wrapper select {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--bg-btn);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.font-select-wrapper select:focus {
+  border-color: var(--link);
+}
+.text-input {
+  grid-column: 2 / span 2;
+  padding: 4px 8px;
+  background: var(--bg-btn);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+.text-input:focus {
+  border-color: var(--link);
 }
 .association {
   display: grid;
