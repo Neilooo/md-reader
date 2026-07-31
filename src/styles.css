@@ -352,11 +352,16 @@ body {
 .viewer {
   flex: 1 1 auto;
   position: relative;
-  overflow: hidden;
 }
 
+/* 预览模式下允许滚动 */
+.viewer:not(.editing) {
+  overflow: auto;
+}
+
+/* 编辑模式下 CodeMirror 自行处理滚动 */
 .viewer.editing {
-  /* editing mode */
+  overflow: hidden;
 }
 
 /* ---- Panel headers & tabs ---- */

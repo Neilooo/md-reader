@@ -59,6 +59,10 @@ const enUS = {
     lineHeight: "Line Height",
     maxWidth: "Page Width",
     fontFamily: "Body Font",
+    fontCustom: "Custom Font",
+    fontCustomPlaceholder: 'Type a font name, e.g. "Noto Sans SC"',
+    editorFontFamily: "Editor Font",
+    editorFontCustom: "Custom Font",
     tocPosition: "Outline Position",
     tocLeft: "Left",
     tocRight: "Right",
@@ -66,6 +70,7 @@ const enUS = {
     sans: "Sans",
     serif: "Serif",
     mono: "Mono",
+    custom: "Custom",
     reset: "Reset",
     updateCheck: "Software update",
     currentVersion: "Current version: {version}",
@@ -162,6 +167,9 @@ const enUS = {
   },
   tabs: {
     close: "Close tab",
+    closeLeft: "Close tabs left",
+    closeRight: "Close tabs right",
+    closeAll: "Close all tabs",
   },
   errors: {
     readFailed: "Failed to read file",

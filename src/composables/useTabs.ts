@@ -84,6 +84,43 @@ function removeTab(id: string) {
   persist();
 }
 
+/** 关闭 targetId 左侧的所有 tab（保留 target 自身及右侧） */
+function closeTabsLeft(targetId: string) {
+  const targetIdx = tabs.value.findIndex((t) => t.id === targetId);
+  if (targetIdx <= 0) return;
+  const targetTab = tabs.value[targetIdx];
+  // 移除 target 左侧的所有 tab（从后往前移除以保持索引稳定）
+  for (let i = targetIdx - 1; i >= 0; i--) {
+    tabs.value.splice(i, 1);
+  }
+  // 若当前 active 是已被移除的 tab，回退到 target
+  if (!tabs.value.find((t) => t.id === activeTabId.value)) {
+    activeTabId.value = targetTab.id;
+  }
+  persist();
+}
+
+/** 关闭 targetId 右侧的所有 tab（保留 target 自身及左侧） */
+function closeTabsRight(targetId: string) {
+  const targetIdx = tabs.value.findIndex((t) => t.id === targetId);
+  if (targetIdx === -1 || targetIdx >= tabs.value.length - 1) return;
+  const targetTab = tabs.value[targetIdx];
+  // 移除 target 右侧的所有 tab
+  tabs.value.splice(targetIdx + 1);
+  // 若当前 active 是已被移除的 tab，回退到 target
+  if (!tabs.value.find((t) => t.id === activeTabId.value)) {
+    activeTabId.value = targetTab.id;
+  }
+  persist();
+}
+
+/** 关闭所有 tab */
+function closeAllTabs() {
+  tabs.value.length = 0;
+  activeTabId.value = "";
+  persist();
+}
+
 function persist() {
   const data: PersistedTabs = {
     paths: tabs.value.map((t) => t.path),
@@ -111,6 +148,9 @@ export function useTabs() {
     createTab,
     activateTab,
     removeTab,
+    closeTabsLeft,
+    closeTabsRight,
+    closeAllTabs,
     persist,
     loadPersisted,
   };

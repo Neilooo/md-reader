@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Tab } from "../composables/useTabs";
 
@@ -12,9 +12,62 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "activate", id: string): void;
   (e: "close", id: string): void;
+  (e: "closeLeft", id: string): void;
+  (e: "closeRight", id: string): void;
+  (e: "closeAll"): void;
 }>();
 
 const { t } = useI18n();
+
+// 右键菜单状态
+const menuState = ref<{
+  visible: boolean;
+  x: number;
+  y: number;
+  targetId: string;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  targetId: "",
+});
+
+function basename(p: string): string {
+  if (!p) return t("app.noFile");
+  const parts = p.split(/[\\/]/);
+  return parts[parts.length - 1];
+}
+
+function onMiddle(id: string) {
+  emit("close", id);
+}
+
+/** 打开右键菜单 */
+async function onContextMenu(e: MouseEvent, id: string) {
+  e.preventDefault();
+  menuState.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    targetId: id,
+  };
+  await nextTick();
+}
+
+/** 关闭右键菜单 */
+function closeMenu() {
+  menuState.value.visible = false;
+}
+
+const hasLeft = computed(() => {
+  const idx = props.tabs.findIndex((t) => t.id === menuState.value.targetId);
+  return idx > 0;
+});
+
+const hasRight = computed(() => {
+  const idx = props.tabs.findIndex((t) => t.id === menuState.value.targetId);
+  return idx < props.tabs.length - 1;
+});
 
 const items = computed(() =>
   props.tabs.map((tab) => ({
@@ -29,20 +82,15 @@ const items = computed(() =>
     active: tab.id === props.activeTabId,
   }))
 );
-
-function basename(p: string): string {
-  if (!p) return t("app.noFile");
-  const parts = p.split(/[\\/]/);
-  return parts[parts.length - 1];
-}
-
-function onMiddle(id: string) {
-  emit("close", id);
-}
 </script>
 
 <template>
-  <div class="tab-bar">
+  <div
+    class="tab-bar"
+    :class="{ 'menu-open': menuState.visible }"
+    @click="closeMenu"
+    @contextmenu="closeMenu"
+  >
     <div
       v-for="item in items"
       :key="item.id"
@@ -51,6 +99,7 @@ function onMiddle(id: string) {
       :title="item.path"
       @click="emit('activate', item.id)"
       @mousedown.middle.prevent="onMiddle(item.id)"
+      @contextmenu.prevent.stop="onContextMenu($event, item.id)"
     >
       <span v-if="item.isDirty" class="dot"></span>
       <span v-if="item.isStale" class="stale-warning">
@@ -72,6 +121,31 @@ function onMiddle(id: string) {
         </svg>
       </button>
     </div>
+
+    <div
+      v-if="menuState.visible"
+      class="context-menu"
+      :style="{ left: menuState.x + 'px', top: menuState.y + 'px' }"
+      @click.stop="closeMenu"
+    >
+      <div
+        :class="['menu-item', { disabled: !hasLeft }]"
+        :title="hasLeft ? '' : '已经是第一个标签'"
+        @click="hasLeft && emit('closeLeft', menuState.targetId)"
+      >
+        {{ t("tabs.closeLeft") }}
+      </div>
+      <div
+        :class="['menu-item', { disabled: !hasRight }]"
+        :title="hasRight ? '' : '已经是最后一个标签'"
+        @click="hasRight && emit('closeRight', menuState.targetId)"
+      >
+        {{ t("tabs.closeRight") }}
+      </div>
+      <div class="menu-item" @click="emit('closeAll')">
+        {{ t("tabs.closeAll") }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -85,6 +159,9 @@ function onMiddle(id: string) {
   background: var(--shell-sidebar-bg);
   border-bottom: 1px solid var(--shell-toolbar-border);
   scrollbar-width: thin;
+}
+.tab-bar.menu-open {
+  overflow: visible;
 }
 .tab-item {
   display: flex;
@@ -145,5 +222,40 @@ function onMiddle(id: string) {
 .close:hover {
   opacity: 1;
   background: var(--bg-btn-hover);
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: absolute;
+  z-index: 100;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--bg-toolbar);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+}
+
+.menu-item {
+  padding: 6px 16px;
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.menu-item:hover {
+  background: var(--bg-btn-hover);
+}
+
+.menu-item.disabled {
+  color: var(--fg-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu-item.disabled:hover {
+  background: transparent;
 }
 </style>

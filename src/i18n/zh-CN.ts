@@ -56,6 +56,10 @@ const zhCN = {
     lineHeight: "行高",
     maxWidth: "页面宽度",
     fontFamily: "正文字体",
+    fontCustom: "自定义字体",
+    fontCustomPlaceholder: "输入字体名称，如 Noto Sans SC",
+    editorFontFamily: "编辑器字体",
+    editorFontCustom: "自定义字体",
     tocPosition: "大纲位置",
     tocLeft: "左侧",
     tocRight: "右侧",
@@ -63,6 +67,7 @@ const zhCN = {
     sans: "无衬线",
     serif: "衬线",
     mono: "等宽",
+    custom: "自定义",
     reset: "恢复默认",
     updateCheck: "软件更新",
     currentVersion: "当前版本：{version}",
@@ -158,6 +163,9 @@ const zhCN = {
   },
   tabs: {
     close: "关闭标签",
+    closeLeft: "关闭左侧标签",
+    closeRight: "关闭右侧标签",
+    closeAll: "关闭所有标签",
   },
   errors: {
     readFailed: "读取失败",

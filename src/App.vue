@@ -78,6 +78,9 @@ const {
   createTab,
   activateTab,
   removeTab,
+  closeTabsLeft,
+  closeTabsRight,
+  closeAllTabs,
   persist,
   loadPersisted,
 } = useTabs();
@@ -483,6 +486,54 @@ async function confirmCloseAll(): Promise<boolean> {
     }
   }
   return true;
+}
+
+/** 关闭 targetId 右侧的所有 tab（保留 target 自身及左侧 tab） */
+async function closeTabRight(targetId: string): Promise<void> {
+  const idx = tabs.value.findIndex((t) => t.id === targetId);
+  if (idx < 0 || idx >= tabs.value.length - 1) return;
+  const toClose = tabs.value.slice(idx + 1);
+  for (const tab of toClose) {
+    activateTab(tab.id);
+    if (tab.isDirty) {
+      const choice = await askUnsaved(tab, "unsaved");
+      if (choice === "cancel") return;
+      if (choice === "save") {
+        const ok = await saveTab(tab);
+        if (!ok) return;
+      } else {
+        tab.isDirty = false;
+      }
+    }
+  }
+  closeTabsRight(targetId);
+}
+
+/** 关闭 targetId 左侧的所有 tab（保留 target 自身及右侧 tab） */
+async function closeTabLeft(targetId: string): Promise<void> {
+  const idx = tabs.value.findIndex((t) => t.id === targetId);
+  if (idx <= 0) return;
+  const toClose = tabs.value.slice(0, idx).toReversed();
+  for (const tab of toClose) {
+    activateTab(tab.id);
+    if (tab.isDirty) {
+      const choice = await askUnsaved(tab, "unsaved");
+      if (choice === "cancel") return;
+      if (choice === "save") {
+        const ok = await saveTab(tab);
+        if (!ok) return;
+      } else {
+        tab.isDirty = false;
+      }
+    }
+  }
+  closeTabsLeft(targetId);
+}
+
+/** 关闭所有 tab */
+async function closeTabAll() {
+  const result = await confirmCloseAll();
+  if (result) closeAllTabs();
 }
 
 function onDialogSave() {
@@ -1451,6 +1502,9 @@ watch(
       :auto-reload="autoReloadWhitelist"
       @activate="switchToTab"
       @close="closeTab"
+      @close-left="closeTabLeft"
+      @close-right="closeTabRight"
+      @close-all="closeTabAll"
     />
 
     <main class="layout">
@@ -1520,6 +1574,7 @@ watch(
         ref="viewerEl"
         class="viewer"
         :class="{ editing: isEditing }"
+        tabindex="0"
         @scroll.passive="onViewerScroll"
       >
         <div v-if="errorMsg" class="error" @click="errorMsg = ''">
