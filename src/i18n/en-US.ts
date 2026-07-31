@@ -170,6 +170,7 @@ const enUS = {
     closeLeft: "Close tabs left",
     closeRight: "Close tabs right",
     closeAll: "Close all tabs",
+    closeOthers: "Close other tabs",
   },
   errors: {
     readFailed: "Failed to read file",

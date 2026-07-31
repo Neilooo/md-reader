@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: "closeLeft", id: string): void;
   (e: "closeRight", id: string): void;
   (e: "closeAll"): void;
+  (e: "closeOthers", id: string): void;
 }>();
 
 const { t } = useI18n();
@@ -68,6 +69,8 @@ const hasRight = computed(() => {
   const idx = props.tabs.findIndex((t) => t.id === menuState.value.targetId);
   return idx < props.tabs.length - 1;
 });
+
+const hasOthers = computed(() => props.tabs.length > 1);
 
 const items = computed(() =>
   props.tabs.map((tab) => ({
@@ -142,10 +145,22 @@ const items = computed(() =>
       >
         {{ t("tabs.closeRight") }}
       </div>
+      <div
+        :class="['menu-item', { disabled: !hasOthers }]"
+        :title="hasOthers ? '' : '只有一个标签'"
+        @click="hasOthers && emit('closeOthers', menuState.targetId)"
+      >
+        {{ t("tabs.closeOthers") }}
+      </div>
       <div class="menu-item" @click="emit('closeAll')">
         {{ t("tabs.closeAll") }}
       </div>
     </div>
+    <div
+      v-if="menuState.visible"
+      class="context-menu-overlay"
+      @click="closeMenu"
+    ></div>
   </div>
 </template>
 
@@ -257,5 +272,12 @@ const items = computed(() =>
 
 .menu-item.disabled:hover {
   background: transparent;
+}
+
+/* 点击其他地方关闭右键菜单 */
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
 }
 </style>

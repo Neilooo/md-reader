@@ -114,6 +114,18 @@ function closeTabsRight(targetId: string) {
   persist();
 }
 
+/** 关闭 targetId 两侧的所有 tab（只保留 target 自身） */
+function closeTabsOthers(targetId: string) {
+  const targetIdx = tabs.value.findIndex((t) => t.id === targetId);
+  if (targetIdx === -1 || tabs.value.length <= 1) return;
+  const targetTab = tabs.value[targetIdx];
+  // 先保留 target，清空所有 tab，再放回去
+  tabs.value.length = 0;
+  tabs.value.push(targetTab);
+  activeTabId.value = targetTab.id;
+  persist();
+}
+
 /** 关闭所有 tab */
 function closeAllTabs() {
   tabs.value.length = 0;
@@ -150,6 +162,7 @@ export function useTabs() {
     removeTab,
     closeTabsLeft,
     closeTabsRight,
+    closeTabsOthers,
     closeAllTabs,
     persist,
     loadPersisted,

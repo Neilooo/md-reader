@@ -201,7 +201,7 @@ body {
   background: var(--shell-toolbar-bg);
   border-bottom: 1px solid var(--shell-toolbar-border);
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .toolbar .btn {
@@ -262,7 +262,7 @@ body {
   top: 100%;
   right: 0;
   z-index: 30;
-  min-width: 200px;
+  min-width: 320px;
   padding: 4px;
   background: var(--shell-export-bg);
   border: 1px solid var(--border);
@@ -283,6 +283,7 @@ body {
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
+  white-space: nowrap;
 }
 
 .toolbar .menu-item:hover {
@@ -309,7 +310,7 @@ body {
   margin: 4px 0;
 }
 
-.toolbar .menu-overlay {
+.menu-overlay {
   position: fixed;
   inset: 0;
   z-index: 29;

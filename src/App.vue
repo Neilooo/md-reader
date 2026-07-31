@@ -80,6 +80,7 @@ const {
   removeTab,
   closeTabsLeft,
   closeTabsRight,
+  closeTabsOthers,
   closeAllTabs,
   persist,
   loadPersisted,
@@ -135,6 +136,22 @@ const exportToast = ref("");
 const pandocInfo = ref<PandocInfo | null>(null);
 const pdfEnginePath = ref<string | null>(null);
 const renderTick = ref(0);
+
+function toggleExportMenu() {
+  showExportMenu.value = !showExportMenu.value;
+}
+
+function closeExportMenu() {
+  showExportMenu.value = false;
+}
+
+function toggleFileTree() {
+  showFileTree.value = !showFileTree.value;
+}
+
+function toggleToc() {
+  showToc.value = !showToc.value;
+}
 
 const showBanner = ref(false);
 const bannerTab = ref<Tab | null>(null);
@@ -530,6 +547,12 @@ async function closeTabAll() {
   if (result) closeAllTabs();
 }
 
+/** 关闭除 targetId 以外的所有 tab */
+async function closeTabOthers(targetId: string) {
+  const result = await confirmCloseAll();
+  if (result) closeTabsOthers(targetId);
+}
+
 function onDialogSave() {
   resolveDialog("save");
 }
@@ -785,30 +808,39 @@ function applyTheme() {
 }
 
 async function exportHtml() {
-  showExportMenu.value = false;
   if (isEditing.value) {
+    closeExportMenu();
     errorMsg.value = t("editor.previewBeforeExport");
     return;
   }
-  if (!bodyRef.value || !draftContent.value) return;
+  if (!bodyRef.value || !draftContent.value) {
+    closeExportMenu();
+    return;
+  }
   try {
-    await exportToHtml(
+    const dest = await exportToHtml(
       bodyRef.value,
       fileName.value || "document.html",
       currentFile.value || undefined
     );
+    showExportMenu.value = false;
+    if (!dest) return;
   } catch (e: any) {
+    showExportMenu.value = false;
     errorMsg.value = `${t("export.exportFailed")}: ${e?.message ?? e}`;
   }
 }
 
 async function exportDocx() {
-  showExportMenu.value = false;
   if (isEditing.value) {
+    showExportMenu.value = false;
     errorMsg.value = t("editor.previewBeforeExport");
     return;
   }
-  if (!bodyRef.value || !draftContent.value) return;
+  if (!bodyRef.value || !draftContent.value) {
+    showExportMenu.value = false;
+    return;
+  }
   exportBusy.value = true;
   exportToast.value = t("export.generatingDocx");
   try {
@@ -825,16 +857,20 @@ async function exportDocx() {
     exportToast.value = "";
   } finally {
     exportBusy.value = false;
+    showExportMenu.value = false;
   }
 }
 
 async function exportPdf() {
-  showExportMenu.value = false;
   if (isEditing.value) {
+    showExportMenu.value = false;
     errorMsg.value = t("editor.previewBeforeExport");
     return;
   }
-  if (!bodyRef.value || !draftContent.value) return;
+  if (!bodyRef.value || !draftContent.value) {
+    showExportMenu.value = false;
+    return;
+  }
   exportBusy.value = true;
   exportToast.value = t("export.generatingPdf");
   try {
@@ -868,11 +904,13 @@ async function exportPdf() {
     exportToast.value = "";
   } finally {
     exportBusy.value = false;
+    showExportMenu.value = false;
   }
 }
 
 function doPrint() {
   if (isEditing.value) {
+    closeExportMenu();
     errorMsg.value = t("editor.previewBeforeExport");
     return;
   }
@@ -1297,7 +1335,7 @@ watch(
         <div class="export-wrap">
           <button
             class="btn"
-            @click="showExportMenu = !showExportMenu"
+            @click="toggleExportMenu"
             :disabled="!canExport || exportBusy"
             :title="
               exportBusy ? t('export.exportBusy') : t('export.exportShortcut')
@@ -1344,10 +1382,7 @@ watch(
           <div v-if="showExportMenu" class="export-menu" @click.stop>
             <button
               class="menu-item"
-              @click="
-                exportHtml();
-                showExportMenu = false;
-              "
+               @click="exportHtml()"
             >
               <span class="mi-label">{{ t("export.html") }}</span>
               <span class="mi-hint">{{ t("export.htmlHint") }}</span>
@@ -1386,10 +1421,7 @@ watch(
             <div class="menu-divider"></div>
             <button
               class="menu-item"
-              @click="
-                doPrint();
-                showExportMenu = false;
-              "
+               @click="doPrint(); closeExportMenu()"
             >
               <span class="mi-label">{{ t("export.print") }}</span>
               <span class="mi-hint">{{ t("export.printHint") }}</span>
@@ -1420,7 +1452,7 @@ watch(
         </button>
         <button
           class="btn"
-          @click="showFileTree = !showFileTree"
+           @click="toggleFileTree"
           :title="t('app.toggleSidebar')"
         >
           {{ t("toolbar.sidebar") }}
@@ -1442,7 +1474,7 @@ watch(
         <button
           v-if="!tocOnLeft"
           class="btn"
-          @click="showToc = !showToc"
+           @click="toggleToc"
           :title="t('app.toggleToc')"
         >
           {{ t("toolbar.outline") }}
@@ -1499,6 +1531,7 @@ watch(
       @close-left="closeTabLeft"
       @close-right="closeTabRight"
       @close-all="closeTabAll"
+      @close-others="closeTabOthers"
     />
 
     <main class="layout">
@@ -1700,7 +1733,7 @@ watch(
     <div
       v-if="showExportMenu"
       class="menu-overlay"
-      @click="showExportMenu = false"
+      @click="closeExportMenu"
     ></div>
   </div>
 </template>

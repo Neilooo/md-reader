@@ -166,6 +166,7 @@ const zhCN = {
     closeLeft: "关闭左侧标签",
     closeRight: "关闭右侧标签",
     closeAll: "关闭所有标签",
+    closeOthers: "关闭其他标签",
   },
   errors: {
     readFailed: "读取失败",
