@@ -312,21 +312,28 @@ function resolveDialog(choice: UnsavedChoice) {
   resolve?.(choice);
 }
 
-async function readFileIntoTab(tab: Tab, path: string, hash = "") {
-  const text = await readTextFile(path);
-  tab.path = path;
-  tab.content = text;
-  tab.draftContent = text;
-  tab.isDirty = false;
-  tab.isEditing = false;
-  tab.headings = extractHeadings(text);
-  tab.pendingHash = hash;
-  tab.pendingScrollTop = hash ? 0 : getScroll(path);
-  tab.pendingSourceLine = 0;
-  tab.scrollTop = tab.pendingScrollTop;
-  pushRecent(path);
-  errorMsg.value = "";
-}
+ async function readFileIntoTab(tab: Tab, path: string, hash = "") {
+   addSuppress(path);
+   try {
+     const text = await readTextFile(path);
+     tab.path = path;
+     tab.content = text;
+     tab.draftContent = text;
+     tab.isDirty = false;
+     tab.isEditing = false;
+     tab.headings = extractHeadings(text);
+     tab.pendingHash = hash;
+     tab.pendingScrollTop = hash ? 0 : getScroll(path);
+     tab.pendingSourceLine = 0;
+     tab.scrollTop = tab.pendingScrollTop;
+     pushRecent(path);
+     errorMsg.value = "";
+     scheduleSuppressClear(path);
+   } catch (e: any) {
+     clearSuppress(path);
+     throw e;
+   }
+ }
 
 async function loadFile(path: string, hash = "") {
   const existing = findTabByPath(path);
@@ -358,23 +365,26 @@ async function loadFile(path: string, hash = "") {
   await syncRootDir(path);
 }
 
-async function forceReloadTab(tab: Tab) {
-  try {
-    const text = await readTextFile(tab.path);
-    tab.content = text;
-    tab.draftContent = text;
-    tab.isDirty = false;
-    tab.headings = extractHeadings(text);
-    if (tab.id === activeTabId.value) {
-      tab.pendingHash = "";
-      tab.pendingScrollTop = tab.scrollTop;
-      tab.pendingSourceLine = 0;
-      find.clearHighlights();
-    }
-  } catch (e: any) {
-    errorMsg.value = `${t("errors.readFailed")}: ${e?.message || e}`;
-  }
-}
+ async function forceReloadTab(tab: Tab) {
+   addSuppress(tab.path);
+   try {
+     const text = await readTextFile(tab.path);
+     tab.content = text;
+     tab.draftContent = text;
+     tab.isDirty = false;
+     tab.headings = extractHeadings(text);
+     if (tab.id === activeTabId.value) {
+       tab.pendingHash = "";
+       tab.pendingScrollTop = tab.scrollTop;
+       tab.pendingSourceLine = 0;
+       find.clearHighlights();
+     }
+     scheduleSuppressClear(tab.path);
+   } catch (e: any) {
+     clearSuppress(tab.path);
+     errorMsg.value = `${t("errors.readFailed")}: ${e?.message || e}`;
+   }
+ }
 
 async function switchToTab(id: string) {
   if (id === activeTabId.value) return;

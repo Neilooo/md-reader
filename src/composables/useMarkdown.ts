@@ -211,7 +211,7 @@ export function renderMarkdown(source: string): string {
   const rawFrontMatter = block ? renderFrontMatter(block) : "";
   const raw = rawFrontMatter + md.render(body, { sourceLineOffset: offset });
   return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ["target", "data-math", "data-source-line"],
+    ADD_ATTR: ["target", "data-math", "data-source-line", "width", "height"],
   });
 }
 
@@ -244,6 +244,7 @@ function configureMermaid(mermaid: any): void {
     startOnLoad: false,
     theme: isDark ? "dark" : "default",
     securityLevel: "strict",
+    htmlLabels: false,
     flowchart: { htmlLabels: false },
     class: { htmlLabels: false },
   });
@@ -273,31 +274,17 @@ export async function renderMath(container: HTMLElement): Promise<void> {
 }
 
 function sanitizeMermaidSvg(svg: string): string {
-  const doc = new globalThis.DOMParser().parseFromString(svg, "image/svg+xml");
-  const root = doc.documentElement;
-  if (!root || root.nodeName === "parsererror") return "";
-  root.querySelectorAll("script").forEach((n) => n.remove());
-  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-  const toStrip: { el: Element; name: string }[] = [];
-  let current: Node | null = root;
-  while (current) {
-    const el = current as Element;
-    if (el.attributes) {
-      for (const attr of Array.from(el.attributes)) {
-        const name = attr.name.toLowerCase();
-        const value = attr.value.trim().toLowerCase();
-        if (
-          name.startsWith("on") ||
-          ((name === "href" || name === "xlink:href") && value.startsWith("javascript:"))
-        ) {
-          toStrip.push({ el, name: attr.name });
-        }
-      }
-    }
-    current = walker.nextNode();
-  }
-  toStrip.forEach(({ el, name }) => el.removeAttribute(name));
-  return new globalThis.XMLSerializer().serializeToString(root);
+  // 字符串级清洗，避免 DOMParser XML 解析导致 <foreignObject> 内 HTML 标签（<p>/<br>）报 tag mismatch
+  // 1. 移除 <script> 标签及其内容
+  let cleaned = svg.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+  // 2. 移除 event handler 属性（onclick/onerror 等）
+  cleaned = cleaned.replace(/\s+on\w+="[^"]*"/gi, "");
+  cleaned = cleaned.replace(/\s+on\w+='[^']*'/gi, "");
+  cleaned = cleaned.replace(/\s+on\w+=\w+/gi, "");
+  // 3. 移除 javascript: 的 href/xlink:href
+  cleaned = cleaned.replace(/\s+href="javascript:[^"]*"/gi, "");
+  cleaned = cleaned.replace(/\s+xlink:href="javascript:[^"]*"/gi, "");
+  return cleaned;
 }
 
 let mermaidIdCounter = 0;
