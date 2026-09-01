@@ -6,6 +6,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "vue-i18n";
 import { useReadingSettings } from "../composables/useReadingSettings";
+import { usePdfStyle } from "../composables/usePdfStyle";
+import { usePdfPreview } from "../composables/usePdfPreview";
 import {
   getCachedPandocRefDoc,
   setCachedPandocRefDoc,
@@ -152,6 +154,7 @@ const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
 
 const showShortcuts = ref(false);
+const settingsTab = ref<"reading" | "pdf">("reading");
 watch(
   () => props.visible,
   (v) => {
@@ -171,6 +174,29 @@ const {
   setTocPosition,
   reset,
 } = useReadingSettings();
+
+const {
+  settings: pdfStyle,
+  templates: pdfTemplates,
+  templateCategories: pdfTemplateCategories,
+  fontChoices: pdfFontChoices,
+  codeFontChoices: pdfCodeFontChoices,
+  applyTemplate: applyPdfTemplate,
+  setOption: setPdfOption,
+  setDensity: setPdfDensity,
+  reset: resetPdfStyle,
+} = usePdfStyle();
+
+const pdfTemplateMap = computed<Record<string, (typeof pdfTemplates)[number]>>(
+  () => {
+    const m: Record<string, (typeof pdfTemplates)[number]> = {};
+    for (const tpl of pdfTemplates) m[tpl.id] = tpl;
+    return m;
+  }
+);
+
+const { previewHtml, previewLight, previewDark, sampleText, compareMode } =
+  usePdfPreview();
 
 interface SystemFont {
   name: string;
@@ -231,227 +257,584 @@ async function registerAssociations() {
         <button class="close" @click="emit('close')">✕</button>
       </div>
 
-      <div class="row">
-        <label>{{ t("settings.fontSize") }}</label>
-        <input
-          type="range"
-          :value="settings.fontSize"
-          min="12"
-          max="24"
-          step="1"
-          @input="
-            (e) => setFontSize(Number((e.target as HTMLInputElement).value))
-          "
-        />
-        <span class="value">{{ settings.fontSize }}px</span>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.editorFontSize") }}</label>
-        <input
-          type="range"
-          :value="settings.editorFontSize"
-          min="12"
-          max="24"
-          step="1"
-          @input="
-            (e) =>
-              setEditorFontSize(Number((e.target as HTMLInputElement).value))
-          "
-        />
-        <span class="value">{{ settings.editorFontSize }}px</span>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.editorFontFamily") }}</label>
-        <select
-          :value="settings.editorFontFamily"
-          @change="
-            (e) => setEditorFontFamily((e.target as HTMLSelectElement).value)
-          "
-        >
-          <option value="mono">{{ t("settings.mono") }}</option>
-          <option disabled>────────</option>
-          <option v-for="name in systemFonts" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.lineHeight") }}</label>
-        <input
-          type="range"
-          :value="settings.lineHeight"
-          min="1.3"
-          max="2.2"
-          step="0.05"
-          @input="
-            (e) => setLineHeight(Number((e.target as HTMLInputElement).value))
-          "
-        />
-        <span class="value">{{ settings.lineHeight.toFixed(2) }}</span>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.maxWidth") }}</label>
-        <input
-          type="range"
-          :value="settings.maxWidth"
-          min="640"
-          max="1320"
-          step="20"
-          @input="
-            (e) => setMaxWidth(Number((e.target as HTMLInputElement).value))
-          "
-        />
-        <span class="value">{{ settings.maxWidth }}px</span>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.fontFamily") }}</label>
-        <select
-          :value="settings.fontFamily"
-          @change="(e) => setFontFamily((e.target as HTMLSelectElement).value)"
-        >
-          <option
-            v-for="opt in fontOptions"
-            :key="opt.value"
-            :value="opt.value"
-          >
-            {{ opt.label }}
-          </option>
-          <option disabled>────────</option>
-          <option v-for="name in systemFonts" :key="name" :value="name">
-            {{ name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="row">
-        <label>{{ t("settings.tocPosition") }}</label>
-        <select
-          :value="settings.tocPosition"
-          @change="
-            (e) =>
-              setTocPosition(
-                (e.target as HTMLSelectElement).value as 'left' | 'right'
-              )
-          "
-        >
-          <option value="left">{{ t("settings.tocLeft") }}</option>
-          <option value="right">{{ t("settings.tocRight") }}</option>
-        </select>
-      </div>
-
-      <div class="association">
-        <div>
-          <div class="association-title">{{ t("settings.updateCheck") }}</div>
-          <div class="association-hint">
-            {{
-              t("settings.currentVersion", { version: currentVersion || "-" })
-            }}
-          </div>
-          <div
-            v-if="updateMessage"
-            class="association-status"
-            :class="updateStatusClass"
-          >
-            {{ updateMessage }}
-          </div>
-        </div>
-        <div class="update-actions">
-          <button class="btn" :disabled="updateBusy" @click="checkForUpdates">
-            {{
-              updateBusy
-                ? t("settings.checkingUpdate")
-                : t("settings.checkUpdate")
-            }}
-          </button>
-          <button
-            v-if="updateStatus === 'available' || updateStatus === 'error'"
-            class="btn primary"
-            @click="openReleasePage"
-          >
-            {{ t("settings.openReleasePage") }}
-          </button>
-        </div>
-      </div>
-
-      <div class="association">
-        <div>
-          <div class="association-title">
-            {{ t("settings.pandocTemplate") }}
-          </div>
-          <div class="association-hint">
-            <span
-              v-if="pandocRefDoc"
-              class="ref-doc-path"
-              :title="pandocRefDoc"
-            >
-              {{ pandocRefDoc }}
-            </span>
-            <span v-else>{{ t("settings.pandocTemplateHint") }}</span>
-          </div>
-        </div>
-        <div class="update-actions">
-          <button class="btn" @click="pickPandocRefDoc">
-            {{ t("settings.chooseTemplate") }}
-          </button>
-          <button v-if="pandocRefDoc" class="btn" @click="clearPandocRefDoc">
-            {{ t("settings.clearTemplate") }}
-          </button>
-        </div>
-      </div>
-
-      <div class="association">
-        <div>
-          <div class="association-title">
-            {{ t("settings.fileAssociation") }}
-          </div>
-          <div class="association-hint">
-            {{ t("settings.fileAssociationHint") }}
-          </div>
-          <div
-            v-if="associationMessage"
-            class="association-status"
-            :class="associationStatus"
-          >
-            {{ associationMessage }}
-          </div>
-        </div>
+      <div class="tabs">
         <button
-          class="btn"
-          :disabled="associationBusy"
-          @click="registerAssociations"
+          type="button"
+          class="tab"
+          :class="{ active: settingsTab === 'reading' }"
+          @click="settingsTab = 'reading'"
         >
-          {{
-            associationBusy
-              ? t("settings.registering")
-              : t("settings.registerAssociation")
-          }}
+          {{ t("settings.tabReading") }}
+        </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: settingsTab === 'pdf' }"
+          @click="settingsTab = 'pdf'"
+        >
+          {{ t("settings.tabPdf") }}
         </button>
       </div>
 
-      <div class="association">
-        <div>
-          <div class="association-title">{{ t("shortcuts.title") }}</div>
-          <div class="association-hint">{{ t("shortcuts.hint") }}</div>
+      <div v-show="settingsTab === 'reading'">
+        <div class="row">
+          <label>{{ t("settings.fontSize") }}</label>
+          <input
+            type="range"
+            :value="settings.fontSize"
+            min="12"
+            max="24"
+            step="1"
+            @input="
+              (e) => setFontSize(Number((e.target as HTMLInputElement).value))
+            "
+          />
+          <span class="value">{{ settings.fontSize }}px</span>
         </div>
-        <button class="btn" @click="showShortcuts = true">
-          {{ t("shortcuts.view") }}
-        </button>
-      </div>
 
-      <div class="footer">
-        <button class="btn" @click="reset">{{ t("settings.reset") }}</button>
-        <button class="btn primary" @click="emit('close')">
-          {{ t("settings.done") }}
-        </button>
+        <div class="row">
+          <label>{{ t("settings.editorFontSize") }}</label>
+          <input
+            type="range"
+            :value="settings.editorFontSize"
+            min="12"
+            max="24"
+            step="1"
+            @input="
+              (e) =>
+                setEditorFontSize(Number((e.target as HTMLInputElement).value))
+            "
+          />
+          <span class="value">{{ settings.editorFontSize }}px</span>
+        </div>
+
+        <div class="row">
+          <label>{{ t("settings.editorFontFamily") }}</label>
+          <select
+            :value="settings.editorFontFamily"
+            @change="
+              (e) => setEditorFontFamily((e.target as HTMLSelectElement).value)
+            "
+          >
+            <option value="mono">{{ t("settings.mono") }}</option>
+            <option disabled>────────</option>
+            <option v-for="name in systemFonts" :key="name" :value="name">
+              {{ name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>{{ t("settings.lineHeight") }}</label>
+          <input
+            type="range"
+            :value="settings.lineHeight"
+            min="1.3"
+            max="2.2"
+            step="0.05"
+            @input="
+              (e) => setLineHeight(Number((e.target as HTMLInputElement).value))
+            "
+          />
+          <span class="value">{{ settings.lineHeight.toFixed(2) }}</span>
+        </div>
+
+        <div class="row">
+          <label>{{ t("settings.maxWidth") }}</label>
+          <input
+            type="range"
+            :value="settings.maxWidth"
+            min="640"
+            max="1320"
+            step="20"
+            @input="
+              (e) => setMaxWidth(Number((e.target as HTMLInputElement).value))
+            "
+          />
+          <span class="value">{{ settings.maxWidth }}px</span>
+        </div>
+
+        <div class="row">
+          <label>{{ t("settings.fontFamily") }}</label>
+          <select
+            :value="settings.fontFamily"
+            @change="(e) => setFontFamily((e.target as HTMLSelectElement).value)"
+          >
+            <option
+              v-for="opt in fontOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+            <option disabled>────────</option>
+            <option v-for="name in systemFonts" :key="name" :value="name">
+              {{ name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>{{ t("settings.tocPosition") }}</label>
+          <select
+            :value="settings.tocPosition"
+            @change="
+              (e) =>
+                setTocPosition(
+                  (e.target as HTMLSelectElement).value as 'left' | 'right'
+                )
+            "
+          >
+            <option value="left">{{ t("settings.tocLeft") }}</option>
+            <option value="right">{{ t("settings.tocRight") }}</option>
+          </select>
+        </div>
+
+        <div class="association">
+          <div>
+            <div class="association-title">{{ t("settings.updateCheck") }}</div>
+            <div class="association-hint">
+              {{
+                t("settings.currentVersion", { version: currentVersion || "-" })
+              }}
+            </div>
+            <div
+              v-if="updateMessage"
+              class="association-status"
+              :class="updateStatusClass"
+            >
+              {{ updateMessage }}
+            </div>
+          </div>
+          <div class="update-actions">
+            <button class="btn" :disabled="updateBusy" @click="checkForUpdates">
+              {{
+                updateBusy
+                  ? t("settings.checkingUpdate")
+                  : t("settings.checkUpdate")
+              }}
+            </button>
+            <button
+              v-if="updateStatus === 'available' || updateStatus === 'error'"
+              class="btn primary"
+              @click="openReleasePage"
+            >
+              {{ t("settings.openReleasePage") }}
+            </button>
+          </div>
+        </div>
+
+        <div class="association">
+          <div>
+            <div class="association-title">
+              {{ t("settings.pandocTemplate") }}
+            </div>
+            <div class="association-hint">
+              <span
+                v-if="pandocRefDoc"
+                class="ref-doc-path"
+                :title="pandocRefDoc"
+              >
+                {{ pandocRefDoc }}
+              </span>
+              <span v-else>{{ t("settings.pandocTemplateHint") }}</span>
+            </div>
+          </div>
+          <div class="update-actions">
+            <button class="btn" @click="pickPandocRefDoc">
+              {{ t("settings.chooseTemplate") }}
+            </button>
+            <button v-if="pandocRefDoc" class="btn" @click="clearPandocRefDoc">
+              {{ t("settings.clearTemplate") }}
+            </button>
+          </div>
+        </div>
+
+        <div class="association">
+          <div>
+            <div class="association-title">
+              {{ t("settings.fileAssociation") }}
+            </div>
+            <div class="association-hint">
+              {{ t("settings.fileAssociationHint") }}
+            </div>
+            <div
+              v-if="associationMessage"
+              class="association-status"
+              :class="associationStatus"
+            >
+              {{ associationMessage }}
+            </div>
+          </div>
+          <button
+            class="btn"
+            :disabled="associationBusy"
+            @click="registerAssociations"
+          >
+            {{
+              associationBusy
+                ? t("settings.registering")
+                : t("settings.registerAssociation")
+            }}
+          </button>
+        </div>
+
+        <div class="association">
+          <div>
+            <div class="association-title">{{ t("shortcuts.title") }}</div>
+            <div class="association-hint">{{ t("shortcuts.hint") }}</div>
+          </div>
+          <button class="btn" @click="showShortcuts = true">
+            {{ t("shortcuts.view") }}
+          </button>
+        </div>
+
+        <div class="reading-reset">
+          <button class="btn" @click="reset">{{ t("settings.reset") }}</button>
+        </div>
+
+        <div v-show="settingsTab === 'pdf'" class="section">
+          <div class="section-title">{{ t("pdfStyle.title") }}</div>
+          <div class="association-hint">{{ t("pdfStyle.previewNote") }}</div>
+
+          <div class="preview-label">
+            {{ t("pdfStyle.preview") }}
+            <button
+              type="button"
+              class="compare-toggle"
+              :class="{ active: compareMode }"
+              @click="compareMode = !compareMode"
+            >
+              {{ t("pdfStyle.compare") }}
+            </button>
+          </div>
+          <textarea
+            v-model="sampleText"
+            class="preview-input"
+            :placeholder="t('pdfStyle.sampleText')"
+            rows="3"
+            spellcheck="false"
+          ></textarea>
+          <template v-if="compareMode">
+            <div class="preview-compare">
+              <div class="preview-col">
+                <div class="preview-col-title">{{ t("pdfStyle.light") }}</div>
+                <iframe
+                  class="pdf-preview"
+                  :srcdoc="previewLight"
+                  title="Light preview"
+                ></iframe>
+              </div>
+              <div class="preview-col">
+                <div class="preview-col-title">{{ t("pdfStyle.dark") }}</div>
+                <iframe
+                  class="pdf-preview"
+                  :srcdoc="previewDark"
+                  title="Dark preview"
+                ></iframe>
+              </div>
+            </div>
+          </template>
+          <iframe
+            v-else
+            class="pdf-preview"
+            :srcdoc="previewHtml"
+            title="PDF style preview"
+          ></iframe>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.template") }}</label>
+            <select
+              :value="pdfStyle.templateId"
+              @change="
+                (e) =>
+                  applyPdfTemplate((e.target as HTMLSelectElement).value)
+              "
+            >
+              <optgroup
+                v-for="cat in pdfTemplateCategories"
+                :key="cat.id"
+                :label="t(cat.i18nKey)"
+              >
+                <option
+                  v-for="tid in cat.items"
+                  :key="tid"
+                  :value="tid"
+                >
+                  {{ t(pdfTemplateMap[tid].i18nKey) }}
+                </option>
+              </optgroup>
+              <optgroup
+                v-if="pdfStyle.templateId === 'custom'"
+                :label="t('pdfStyle.custom')"
+              >
+                <option value="custom">{{ t("pdfStyle.custom") }}</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.bodyFont") }}</label>
+            <select
+              :value="pdfStyle.bodyFont"
+              @change="
+                (e) =>
+                  setPdfOption('bodyFont', (e.target as HTMLSelectElement).value)
+              "
+            >
+              <option
+                v-for="f in pdfFontChoices"
+                :key="f.value"
+                :value="f.value"
+              >
+                {{ f.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.headingFont") }}</label>
+            <select
+              :value="pdfStyle.headingFont"
+              @change="
+                (e) =>
+                  setPdfOption(
+                    'headingFont',
+                    (e.target as HTMLSelectElement).value
+                  )
+              "
+            >
+              <option
+                v-for="f in pdfFontChoices"
+                :key="f.value"
+                :value="f.value"
+              >
+                {{ f.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.codeFont") }}</label>
+            <select
+              :value="pdfStyle.codeFont"
+              @change="
+                (e) =>
+                  setPdfOption('codeFont', (e.target as HTMLSelectElement).value)
+              "
+            >
+              <option
+                v-for="f in pdfCodeFontChoices"
+                :key="f.value"
+                :value="f.value"
+              >
+                {{ f.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.fontSize") }}</label>
+            <input
+              type="range"
+              :value="pdfStyle.fontSize"
+              min="12"
+              max="24"
+              step="1"
+              @input="
+                (e) =>
+                  setPdfOption('fontSize', Number((e.target as HTMLInputElement).value))
+              "
+            />
+            <span class="value">{{ pdfStyle.fontSize }}px</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.lineHeight") }}</label>
+            <input
+              type="range"
+              :value="pdfStyle.lineHeight"
+              min="1.3"
+              max="2.4"
+              step="0.05"
+              @input="
+                (e) =>
+                  setPdfOption(
+                    'lineHeight',
+                    Number((e.target as HTMLInputElement).value)
+                  )
+              "
+            />
+            <span class="value">{{ pdfStyle.lineHeight.toFixed(2) }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.density") }}</label>
+            <div class="density-group">
+              <button
+                type="button"
+                class="seg"
+                :class="{ active: pdfStyle.density === 'compact' }"
+                @click="setPdfDensity('compact')"
+              >
+                {{ t("pdfStyle.compact") }}
+              </button>
+              <button
+                type="button"
+                class="seg"
+                :class="{ active: pdfStyle.density === 'standard' }"
+                @click="setPdfDensity('standard')"
+              >
+                {{ t("pdfStyle.standard") }}
+              </button>
+              <button
+                type="button"
+                class="seg"
+                :class="{ active: pdfStyle.density === 'loose' }"
+                @click="setPdfDensity('loose')"
+              >
+                {{ t("pdfStyle.loose") }}
+              </button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.textColor") }}</label>
+            <input
+              type="color"
+              class="color-input"
+              :value="pdfStyle.textColor"
+              @input="
+                (e) =>
+                  setPdfOption('textColor', (e.target as HTMLInputElement).value)
+              "
+            />
+            <span class="value mono">{{ pdfStyle.textColor }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.headingColor") }}</label>
+            <input
+              type="color"
+              class="color-input"
+              :value="pdfStyle.headingColor"
+              @input="
+                (e) =>
+                  setPdfOption(
+                    'headingColor',
+                    (e.target as HTMLInputElement).value
+                  )
+              "
+            />
+            <span class="value mono">{{ pdfStyle.headingColor }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.linkColor") }}</label>
+            <input
+              type="color"
+              class="color-input"
+              :value="pdfStyle.linkColor"
+              @input="
+                (e) =>
+                  setPdfOption('linkColor', (e.target as HTMLInputElement).value)
+              "
+            />
+            <span class="value mono">{{ pdfStyle.linkColor }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.codeBg") }}</label>
+            <input
+              type="color"
+              class="color-input"
+              :value="pdfStyle.codeBg"
+              @input="
+                (e) =>
+                  setPdfOption('codeBg', (e.target as HTMLInputElement).value)
+              "
+            />
+            <span class="value mono">{{ pdfStyle.codeBg }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.bgColor") }}</label>
+            <input
+              type="color"
+              class="color-input"
+              :value="pdfStyle.bgColor"
+              @input="
+                (e) =>
+                  setPdfOption('bgColor', (e.target as HTMLInputElement).value)
+              "
+            />
+            <span class="value mono">{{ pdfStyle.bgColor }}</span>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.pageSize") }}</label>
+            <select
+              class="sub-select"
+              :value="pdfStyle.pageSize"
+              @change="
+                (e) =>
+                  setPdfOption('pageSize', (e.target as HTMLSelectElement).value as 'A4' | 'Letter')
+              "
+            >
+              <option value="A4">{{ t("pdfStyle.a4") }}</option>
+              <option value="Letter">{{ t("pdfStyle.letter") }}</option>
+            </select>
+            <select
+              class="sub-select"
+              :value="pdfStyle.orientation"
+              @change="
+                (e) =>
+                  setPdfOption(
+                    'orientation',
+                    (e.target as HTMLSelectElement).value as 'portrait' | 'landscape'
+                  )
+              "
+            >
+              <option value="portrait">{{ t("pdfStyle.portrait") }}</option>
+              <option value="landscape">{{ t("pdfStyle.landscape") }}</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <label>{{ t("pdfStyle.pageMargin") }}</label>
+            <input
+              type="range"
+              :value="pdfStyle.pageMargin"
+              min="5"
+              max="40"
+              step="1"
+              @input="
+                (e) =>
+                  setPdfOption(
+                    'pageMargin',
+                    Number((e.target as HTMLInputElement).value)
+                  )
+              "
+            />
+            <span class="value">{{ pdfStyle.pageMargin }}mm</span>
+          </div>
+
+          <div class="section-actions">
+            <button class="btn" @click="resetPdfStyle">
+              {{ t("pdfStyle.reset") }}
+            </button>
+          </div>
+        </div>
+
+        <div class="footer">
+          <button class="btn primary" @click="emit('close')">
+            {{ t("settings.done") }}
+          </button>
+        </div>
       </div>
     </div>
+    <ShortcutsDialog :visible="showShortcuts" @close="showShortcuts = false" />
   </div>
-  <ShortcutsDialog :visible="showShortcuts" @close="showShortcuts = false" />
 </template>
 
 <style scoped>
@@ -469,7 +852,10 @@ async function registerAssociations() {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px 24px;
-  min-width: 420px;
+  min-width: 460px;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   color: var(--fg);
 }
@@ -510,6 +896,150 @@ select {
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
+}
+.sub-select {
+  grid-column: auto;
+  min-width: 96px;
+}
+.density-group {
+  grid-column: 2 / span 2;
+  display: flex;
+  gap: 6px;
+}
+.seg {
+  flex: 1;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-btn);
+  color: var(--fg);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.seg:hover {
+  background: var(--bg-btn-hover);
+}
+.seg.active {
+  background: var(--link);
+  color: #fff;
+  border-color: var(--link);
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover {
+  color: var(--fg);
+}
+.tab.active {
+  color: var(--link);
+  border-bottom-color: var(--link);
+  font-weight: 600;
+}
+.reading-reset {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.preview-label {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.preview-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--fg);
+  background: var(--bg-btn);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+}
+.compare-toggle {
+  margin-left: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-btn);
+  color: var(--fg-muted);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.compare-toggle:hover {
+  background: var(--bg-btn-hover);
+}
+.compare-toggle.active {
+  background: var(--link);
+  color: #fff;
+  border-color: var(--link);
+}
+.preview-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+.preview-col-title {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-bottom: 4px;
+}
+.pdf-preview {
+  width: 100%;
+  height: 280px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.color-input {
+  grid-column: 2;
+  width: 48px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.section-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 .association {
   display: grid;

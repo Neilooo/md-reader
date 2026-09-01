@@ -88,7 +88,6 @@ fn run_edge_print(
     cmd.arg("--no-first-run");
     cmd.arg("--no-default-browser-check");
     cmd.arg("--no-pdf-header-footer");
-    cmd.arg("--no-margins");
     cmd.arg("--run-all-compositor-stages-before-draw");
     cmd.arg(format!(
         "--virtual-time-budget={}",

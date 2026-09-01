@@ -11,19 +11,28 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "activate", id: string): void;
   (e: "close", id: string): void;
+  (e: "closeOthers", id: string): void;
+  (e: "closeAll"): void;
+  (e: "refresh", id: string): void;
   (e: "revealFile", path: string): void;
+  (e: "copyPath", path: string): void;
 }>();
 
 const { t } = useI18n();
 
-const menuState = ref<{ visible: boolean; x: number; y: number; path: string }>(
-  {
-    visible: false,
-    x: 0,
-    y: 0,
-    path: "",
-  }
-);
+const menuState = ref<{
+  visible: boolean;
+  x: number;
+  y: number;
+  id: string;
+  path: string;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  id: "",
+  path: "",
+});
 
 const items = computed(() =>
   props.tabs.map((tab) => ({
@@ -45,20 +54,55 @@ function onMiddle(id: string) {
   emit("close", id);
 }
 
-function onContextMenu(e: MouseEvent, path: string) {
-  if (!path) return;
+function onContextMenu(e: MouseEvent, item: { id: string; path: string }) {
+  if (!item.path) return;
   e.preventDefault();
   e.stopPropagation();
-  menuState.value = { visible: true, x: e.clientX, y: e.clientY, path };
+  menuState.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    id: item.id,
+    path: item.path,
+  };
 }
 
 function closeMenu() {
   menuState.value.visible = false;
 }
 
+function onClose() {
+  if (menuState.value.id) emit("close", menuState.value.id);
+  closeMenu();
+}
+
+function onCloseOthers() {
+  if (menuState.value.id && props.tabs.length > 1) {
+    emit("closeOthers", menuState.value.id);
+  }
+  closeMenu();
+}
+
+function onCloseAll() {
+  if (props.tabs.length > 0) emit("closeAll");
+  closeMenu();
+}
+
+function onRefresh() {
+  if (menuState.value.id) emit("refresh", menuState.value.id);
+  closeMenu();
+}
+
 function onRevealFile() {
   if (menuState.value.path) {
     emit("revealFile", menuState.value.path);
+  }
+  closeMenu();
+}
+
+function onCopyPath() {
+  if (menuState.value.path) {
+    emit("copyPath", menuState.value.path);
   }
   closeMenu();
 }
@@ -74,7 +118,7 @@ function onRevealFile() {
       :title="item.path"
       @click="emit('activate', item.id)"
       @mousedown.middle.prevent="onMiddle(item.id)"
-      @contextmenu.prevent="onContextMenu($event, item.path)"
+      @contextmenu.prevent="onContextMenu($event, item)"
     >
       <span v-if="item.isDirty" class="dot"></span>
       <span class="name">{{ item.name }}</span>
@@ -93,6 +137,26 @@ function onRevealFile() {
       :style="{ left: menuState.x + 'px', top: menuState.y + 'px' }"
       @click.stop="closeMenu"
     >
+      <div class="menu-item" @click="onClose">{{ t("tabs.close") }}</div>
+      <div
+        class="menu-item"
+        :class="{ disabled: tabs.length <= 1 }"
+        @click="onCloseOthers"
+      >
+        {{ t("tabs.closeOthers") }}
+      </div>
+      <div
+        class="menu-item"
+        :class="{ disabled: tabs.length === 0 }"
+        @click="onCloseAll"
+      >
+        {{ t("tabs.closeAll") }}
+      </div>
+      <div class="menu-item" @click="onRefresh">{{ t("tabs.refresh") }}</div>
+      <div class="menu-sep"></div>
+      <div class="menu-item" @click="onCopyPath">
+        {{ t("tabs.copyPath") }}
+      </div>
       <div class="menu-item" @click="onRevealFile">
         {{ t("app.openContainingFolder") }}
       </div>
@@ -194,6 +258,16 @@ function onRevealFile() {
 }
 .context-menu .menu-item:hover {
   background: var(--bg-btn-hover);
+}
+.context-menu .menu-item.disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+.context-menu .menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
 }
 .context-menu-overlay {
   position: fixed;

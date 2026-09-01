@@ -5,6 +5,13 @@ import hljsLight from "highlight.js/styles/github.css?raw";
 import hljsDark from "highlight.js/styles/github-dark.css?raw";
 import katexCss from "katex/dist/katex.min.css?raw";
 import { EXPORT_BASE_CSS } from "./exportStyles";
+import {
+  usePdfStyle,
+  pdfStyleToCss,
+  isLightColor,
+  getDefaultPdfStyle,
+  type PdfStyleOptions,
+} from "./usePdfStyle";
 import { inlineImages, ensureSvgNamespace } from "./exportInline";
 import { i18n } from "../i18n";
 
@@ -17,10 +24,6 @@ function escapeHtml(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-}
-
-function pickTheme(): "light" | "dark" {
-  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 }
 
 function buildDefaultPath(sourceFilePath: string | undefined, defaultFileName: string): string {
@@ -36,6 +39,7 @@ function buildDefaultPath(sourceFilePath: string | undefined, defaultFileName: s
 
 export interface BuildExportOpts {
   forceLight?: boolean;
+  pdfStyle?: PdfStyleOptions;
 }
 
 export async function buildExportHtml(
@@ -55,8 +59,14 @@ export async function buildExportHtml(
   await inlineImages(clone);
   ensureSvgNamespace(clone);
 
-  const theme = opts.forceLight ? "light" : pickTheme();
-  const hljs = theme === "dark" ? hljsDark : hljsLight;
+  const pdfStyle = opts.pdfStyle ?? getDefaultPdfStyle();
+  // Pick the code-highlight theme based on the chosen page background.
+  const dark =
+    opts.forceLight
+      ? false
+      : !isLightColor(pdfStyle.bgColor);
+  const hljs = dark ? hljsDark : hljsLight;
+  const styleVars = pdfStyleToCss(pdfStyle);
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -67,6 +77,7 @@ export async function buildExportHtml(
 ${katexCss}
 ${hljs}
 ${EXPORT_BASE_CSS}
+${styleVars}
 </style>
 </head>
 <body>
@@ -90,7 +101,9 @@ export async function exportToHtml(
     filters: [{ name: "HTML", extensions: ["html", "htm"] }],
   });
   if (!dest) return null;
-  const html = await buildExportHtml(body, baseName);
+  const html = await buildExportHtml(body, baseName, {
+    pdfStyle: usePdfStyle().settings.value,
+  });
   await writeTextFile(dest, html);
   return dest;
 }
@@ -132,7 +145,10 @@ async function pandocExport(
     filters: [{ name: prettyName, extensions: [ext] }],
   });
   if (!dest) return null;
-  const html = await buildExportHtml(body, title, { forceLight: true });
+  const html = await buildExportHtml(body, title, {
+    forceLight: true,
+    pdfStyle: getDefaultPdfStyle(),
+  });
   return await invoke<string>("export_with_pandoc", {
     opts: {
       html,
@@ -212,7 +228,9 @@ export async function exportToPdf(
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (!dest) return null;
-  const html = await buildExportHtml(body, title, { forceLight: true });
+  const html = await buildExportHtml(body, title, {
+    pdfStyle: usePdfStyle().settings.value,
+  });
   const cached = getCachedEdgePath();
   try {
     return await callEdge(html, dest, cached);
@@ -229,7 +247,7 @@ export async function exportToPdf(
 }
 
 export function printDocument(body: HTMLElement, title: string) {
-  buildExportHtml(body, title, { forceLight: true })
+  buildExportHtml(body, title, { pdfStyle: usePdfStyle().settings.value })
     .then((html) => {
       const blob = new globalThis.Blob([html], { type: "text/html" });
       const url = globalThis.URL.createObjectURL(blob);

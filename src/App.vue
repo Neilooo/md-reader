@@ -173,6 +173,27 @@ async function openInExplorer(path: string) {
     errorMsg.value = e?.message ?? String(e);
   }
 }
+
+async function copyPath(path: string) {
+  if (!path) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(path);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = path;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    exportToast.value = t("tabs.copiedPath");
+  } catch {
+    exportToast.value = t("tabs.copyFailed");
+  }
+}
 const dialogFileName = computed(() =>
   dialogTab.value ? basename(dialogTab.value.path) : ""
 );
@@ -410,6 +431,48 @@ function onDialogDiscard() {
 }
 function onDialogCancel() {
   resolveDialog("cancel");
+}
+
+async function closeOthers(id: string) {
+  const keep = tabs.value.find((x) => x.id === id);
+  if (!keep || tabs.value.length <= 1) return;
+  const others = tabs.value.filter((x) => x.id !== id);
+  for (const tab of others) {
+    if (tab.isDirty) {
+      if (tab.id !== activeTabId.value) switchToTab(tab.id);
+      const choice = await askUnsaved(tab, "unsaved");
+      if (choice === "cancel") return;
+      if (choice === "save") {
+        const ok = await saveTab(tab);
+        if (!ok) return;
+      }
+    }
+  }
+  for (const tab of others) removeTab(tab.id);
+  activateTab(keep.id);
+}
+
+async function closeAll() {
+  const ok = await confirmCloseAll();
+  if (!ok) return;
+  for (const tab of [...tabs.value]) removeTab(tab.id);
+}
+
+async function refreshTab(id: string) {
+  const tab = tabs.value.find((x) => x.id === id);
+  if (!tab) return;
+  if (tab.isDirty) {
+    if (id !== activeTabId.value) switchToTab(id);
+    const choice = await askUnsaved(tab, "external");
+    if (choice === "cancel") return;
+    if (choice === "save") {
+      // "重新加载" — discard unsaved edits and reload from disk.
+      await forceReloadTab(tab);
+    }
+    // "保留编辑" — keep current edits, do not reload.
+    return;
+  }
+  await forceReloadTab(tab);
 }
 
 function getPreviewTopSourceLine(): number {
@@ -1338,7 +1401,11 @@ watch(
       :active-tab-id="activeTabId"
       @activate="switchToTab"
       @close="closeTab"
+      @close-others="closeOthers"
+      @close-all="closeAll"
+      @refresh="refreshTab"
       @reveal-file="openInExplorer"
+      @copy-path="copyPath"
     />
 
     <main class="layout">
