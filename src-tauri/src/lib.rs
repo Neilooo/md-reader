@@ -464,11 +464,22 @@ fn initial_open_file() -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // Already-running instance: focus window and emit the new file path.
+            // Already-running instance: bring the window to the front (even when it is
+            // minimized) and emit the new file path so the frontend opens it in a tab.
             use tauri::Emitter;
             if let Some(window) = app.get_webview_window("main") {
+                // Restore from the minimized state first.
+                let _ = window.unminimize();
+                // Make sure it is actually visible.
                 let _ = window.show();
+                // Briefly raise to top-most and then drop it back, so Windows'
+                // foreground-lock cannot keep the window hidden behind others.
+                #[cfg(target_os = "windows")]
+                let _ = window.set_always_on_top(true);
+                // Move the window into the foreground.
                 let _ = window.set_focus();
+                #[cfg(target_os = "windows")]
+                let _ = window.set_always_on_top(false);
             }
             if let Some(path) = extract_md_path_from_args(&argv) {
                 let _ = app.emit("md-reader://open-file", path);
