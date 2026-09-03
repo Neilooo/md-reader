@@ -37,6 +37,20 @@ function isExternal(url: string): boolean {
   return /^(https?:|data:|blob:|mailto:|tel:|asset:|tauri:)/i.test(url);
 }
 
+/** Decode URI escaping added by MarkdownIt before using a local URL as a file path. */
+function resolveLocalPath(baseDir: string, urlPath: string): string {
+  let path = urlPath;
+  try {
+    path = decodeURIComponent(urlPath);
+  } catch {
+    // Raw HTML may contain a stray "%". Keep it unchanged instead of breaking
+    // every link rewrite in the rendered document.
+  }
+  return isAbsoluteWin(path) || isAbsoluteUnix(path)
+    ? path
+    : joinPath(baseDir, path);
+}
+
 export interface RewriteContext {
   currentFile: string;
   rootDir: string;
@@ -55,8 +69,7 @@ export function rewriteImagesAndLinks(
     const src = img.getAttribute("src") || "";
     if (!src || isExternal(src)) return;
     try {
-      const abs =
-        isAbsoluteWin(src) || isAbsoluteUnix(src) ? src : joinPath(baseDir, src);
+      const abs = resolveLocalPath(baseDir, src);
       img.src = convertFileSrc(abs);
     } catch {
       /* skip */
@@ -86,11 +99,8 @@ export function rewriteImagesAndLinks(
     const pathPart = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
     const hash = hashIdx >= 0 ? href.slice(hashIdx + 1) : "";
     if (!pathPart) return;
-    if (!/\.(md|markdown|mdx|txt)$/i.test(pathPart)) return;
-    const abs =
-      isAbsoluteWin(pathPart) || isAbsoluteUnix(pathPart)
-        ? pathPart
-        : joinPath(baseDir, pathPart);
+    const abs = resolveLocalPath(baseDir, pathPart);
+    if (!/\.(md|markdown|mdx|txt)$/i.test(abs)) return;
     a.addEventListener("click", (e) => {
       e.preventDefault();
       onInternalLink(abs, hash);
