@@ -578,7 +578,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 if let tauri::RunEvent::Opened { urls } = event {
-                    handle_opened_files(app, urls);
+                    handle_opened_files(app, &urls);
                 }
             }
             #[cfg(not(target_os = "macos"))]
