@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 修复
+- macOS：双击 `.md` 文件现在会用 MD Reader 打开该文件（此前只会启动应用，文件需要手动拖入）。macOS 通过 Open-Document Apple Event 投递文件（不走命令行参数），现在应用监听 `RunEvent::Opened` 事件，启动阶段收到的文件会在界面就绪后自动打开。
+
 ## [0.3.7] - 2026-09-09
 
 ### 新增

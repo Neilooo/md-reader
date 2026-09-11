@@ -1023,6 +1023,17 @@ onMounted(async () => {
 
   const initialPath = await getInitialOpenFile();
   await restoreTabs(initialPath);
+  // macOS: files double-clicked before the frontend finished loading arrive as
+  // RunEvent::Opened in Rust and are queued there; drain them now that the
+  // open-file listener above is attached.
+  try {
+    const pending = await invoke<string[]>("take_pending_open_files");
+    for (const path of pending) {
+      if (path) await loadFile(path);
+    }
+  } catch {
+    /* backend build without the pending-file queue — nothing to drain */
+  }
   try {
     const webview = getCurrentWebview();
     unlistenDrop = await webview.onDragDropEvent(async (event) => {

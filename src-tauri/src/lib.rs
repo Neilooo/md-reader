@@ -70,6 +70,14 @@ pub struct WatcherState {
     current_root: Mutex<Option<PathBuf>>,
 }
 
+/// Files delivered via the macOS Open-Document Apple Event (Finder double-click,
+/// "Open With"). They arrive as RunEvent::Opened, never through argv, so neither
+/// the startup arg scan nor the single-instance callback can see them. Paths are
+/// queued here until the frontend drains them on mount (the frontend may not be
+/// loaded yet when the first open arrives).
+#[derive(Default)]
+pub struct OpenedFilesState(Mutex<Vec<String>>);
+
 fn is_markdown_file(path: &Path) -> bool {
     matches!(
         path.extension()
@@ -460,6 +468,46 @@ fn initial_open_file() -> Option<String> {
     extract_md_path_from_args(&argv)
 }
 
+#[tauri::command]
+fn take_pending_open_files(state: State<'_, OpenedFilesState>) -> Vec<String> {
+    let mut queue = state.0.lock().expect("opened files state poisoned");
+    std::mem::take(&mut *queue)
+}
+
+/// Handles files macOS hands over via RunEvent::Opened (Open-Document Apple
+/// Event): focus the window, queue the paths for the frontend and emit the
+/// open-file event for the already-mounted listener.
+#[cfg(target_os = "macos")]
+fn handle_opened_files(app: &tauri::AppHandle, urls: &[tauri::Url]) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let mut to_emit: Vec<String> = Vec::new();
+    {
+        let state = app.state::<OpenedFilesState>();
+        let mut queue = state.0.lock().expect("opened files state poisoned");
+        for url in urls {
+            let Ok(path) = url.to_file_path() else {
+                continue;
+            };
+            if !is_markdown_file(&path) {
+                continue;
+            }
+            let path = strip_windows_extended_prefix(path.to_string_lossy().to_string());
+            if queue.contains(&path) {
+                continue;
+            }
+            queue.push(path.clone());
+            to_emit.push(path);
+        }
+    }
+    for path in to_emit {
+        let _ = app.emit("md-reader://open-file", path);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -493,6 +541,7 @@ pub fn run() {
         .plugin(tauri_plugin_system_fonts::init())
         .setup(|app| {
             app.manage(WatcherState::default());
+            app.manage(OpenedFilesState::default());
 
             let window = app.get_webview_window("main").unwrap();
             let store = app.store(STORAGE_FILE)?;
@@ -514,6 +563,7 @@ pub fn run() {
             stop_watch,
             search_in_files,
             initial_open_file,
+            take_pending_open_files,
             register_file_associations,
             set_theme_mode,
             set_effective_theme,
@@ -522,8 +572,20 @@ pub fn run() {
             pdf_utils::check_pdf_engine,
             pdf_export::export_pdf_via_edge
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            {
+                if let tauri::RunEvent::Opened { urls } = event {
+                    handle_opened_files(app, urls);
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (app, event);
+            }
+        });
 }
 
 #[derive(Debug, Serialize, Clone)]
