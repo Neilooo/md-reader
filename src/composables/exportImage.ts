@@ -34,6 +34,35 @@ function resolveBackground(el: HTMLElement | null): string {
   return "#ffffff";
 }
 
+// Stage width ceiling. At the adaptive 2x scale this yields a 12000px canvas
+// edge, comfortably inside Chromium's 65535px limit while keeping pathological
+// documents from producing absurd canvases.
+const MAX_STAGE_WIDTH = 6000;
+
+// Override the reading view's scroll containers for the screenshot (#37):
+// code blocks wrap instead of clipping, wide tables/diagrams lay out fully now
+// that the stage is widened to fit them.
+const EXPORT_STYLE = `
+.mdr-png-export pre { overflow: visible; white-space: pre-wrap; word-break: break-word; }
+.mdr-png-export .table-wrap,
+.mdr-png-export .math-block,
+.mdr-png-export .mermaid-block { overflow: visible; }
+`;
+
+/**
+ * Natural width the image needs so nothing clips: the reader width, or the
+ * widest non-wrappable element (tables, math, mermaid) when it overflows.
+ * `pre` is excluded — long code wraps inside the image instead of widening it.
+ */
+function measureNeededWidth(body: HTMLElement): number {
+  let needed = body.clientWidth;
+  const selector = ".table-wrap, .math-block, .mermaid-block";
+  body.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+    needed = Math.max(needed, el.scrollWidth);
+  });
+  return needed;
+}
+
 export async function exportToPng(
   body: HTMLElement,
   baseName: string,
@@ -59,10 +88,17 @@ export async function exportToPng(
     parent.removeChild(el);
   });
   clone.querySelectorAll(".header-anchor").forEach((el) => el.remove());
+  clone.classList.add("mdr-png-export");
 
   await inlineImages(clone);
 
-  const width = Math.max(body.clientWidth, 320);
+  // Measure before cloning would have been ideal; scrollWidth is measured on
+  // `body`'s live descendants so wide tables report their full extent, then
+  // the clone inherits the widened stage.
+  const width = Math.min(
+    Math.max(measureNeededWidth(body), 320),
+    MAX_STAGE_WIDTH
+  );
   const background = resolveBackground(body);
   const stage = document.createElement("div");
   stage.setAttribute(
@@ -71,6 +107,9 @@ export async function exportToPng(
   );
   stage.style.width = width + "px";
   stage.style.backgroundColor = background;
+  const style = document.createElement("style");
+  style.textContent = EXPORT_STYLE;
+  stage.appendChild(style);
   stage.appendChild(clone);
   document.body.appendChild(stage);
 
@@ -81,6 +120,7 @@ export async function exportToPng(
     let scale = Math.min(
       2,
       MAX_EDGE / height,
+      MAX_EDGE / width,
       Math.sqrt(MAX_AREA / (width * height))
     );
     if (scale < 1) throw new Error(t("export.pngTooLong"));
