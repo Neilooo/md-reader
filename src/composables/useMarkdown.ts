@@ -212,6 +212,16 @@ export function extractHeadings(source: string): Heading[] {
   return headings;
 }
 
+// DOMPurify 默认 URI 白名单不认 D:/... / D:\... 这类盘符绝对路径，会把
+// href/src 整个剥掉（#36：盘符绝对链接点击无反应、绝对路径图片不显示）。
+// 在其默认正则上仅插入「盘符+冒号+斜杠」分支（[a-z]:[\\/]），其余逐字符
+// 保持同形——相对链接/锚点仍走原有分支放行，javascript: 等仍被拦截。
+// 字符类里的 \- 不能去掉：写成 - 会把 .-: 解析成 ASCII 区间（0x2E–0x3A），
+// 连 / 一起排除，sub/b.md 这类相对链接就被误杀了。
+const ALLOWED_URI =
+  // eslint-disable-next-line no-useless-escape -- 同 DOMPurify 默认正则原形
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[a-z]:[\\/]|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
 /**
  * 源文本 → HTML。front matter 单独渲染成表格，正文走 markdown-it，
  * 最后 DOMPurify 净化（白名单放行 target/data-math/data-source-line）。
@@ -224,6 +234,7 @@ export function renderMarkdown(source: string): string {
   const raw = rawFrontMatter + md.render(body, { sourceLineOffset: offset });
   return DOMPurify.sanitize(raw, {
     ADD_ATTR: ["target", "data-math", "data-source-line"],
+    ALLOWED_URI_REGEXP: ALLOWED_URI,
   });
 }
 

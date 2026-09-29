@@ -33,6 +33,10 @@ function joinPath(base: string, rel: string): string {
   let joined = out.join("/");
   if (/^[A-Za-z]:$/.test(out[0] || "")) {
     joined = out[0] + "/" + out.slice(1).join("/");
+  } else if (baseNorm.startsWith("//")) {
+    // UNC 根（\\wsl.localhost\... 经 dirname 归一为 //开头）必须补回两个
+    // 前导斜杠——丢掉一个就变成无效路径，#36 的 WSL 相对链接读取失败
+    joined = "//" + joined;
   } else if (baseNorm.startsWith("/")) {
     joined = "/" + joined;
   }
