@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "md-reader"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "notify",
  "notify-debouncer-mini",
