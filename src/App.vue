@@ -749,8 +749,13 @@ async function getInitialOpenFile(): Promise<string> {
  * 启动时恢复上次的标签列表（useTabs 持久化），兼容旧的
  * 「最近一个文件」localStorage 记录；读不到的文件静默跳过。
  * initialPath（argv 带来的）最后加载并激活。
+ * 设置里关闭「启动时恢复标签页」（#38）则跳过恢复，只处理 initialPath。
  */
 async function restoreTabs(initialPath = "") {
+  if (!readingSettings.value.restoreTabs) {
+    if (initialPath) await loadFile(initialPath);
+    return;
+  }
   const persisted = loadPersisted();
   let paths: string[] = [];
   let activePath = "";

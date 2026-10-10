@@ -193,6 +193,7 @@ const {
   setEditorFontSize,
   setEditorFontFamily,
   setTocPosition,
+  setRestoreTabs,
   setReaderBgLight,
   setReaderBgDark,
   resetReaderBg,
@@ -562,6 +563,30 @@ async function registerAssociations() {
             <option value="left">{{ t("settings.tocLeft") }}</option>
             <option value="right">{{ t("settings.tocRight") }}</option>
           </select>
+        </div>
+
+        <!-- 启动时恢复标签页（#38）：关闭后重启是空白欢迎页，
+             双击文件启动 / 手动打开不受影响 -->
+        <div class="row">
+          <label>{{ t("settings.restoreTabs") }}</label>
+          <div class="toggle-group" :title="t('settings.restoreTabsHint')">
+            <button
+              type="button"
+              class="seg"
+              :class="{ active: settings.restoreTabs }"
+              @click="setRestoreTabs(true)"
+            >
+              {{ t("settings.on") }}
+            </button>
+            <button
+              type="button"
+              class="seg"
+              :class="{ active: !settings.restoreTabs }"
+              @click="setRestoreTabs(false)"
+            >
+              {{ t("settings.off") }}
+            </button>
+          </div>
         </div>
 
         <!-- 以下为操作卡片：更新检查 / pandoc 模板 / 文件关联 / 快捷键 -->
@@ -1085,6 +1110,12 @@ select {
   grid-column: 2 / span 2;
   display: flex;
   gap: 6px;
+}
+.toggle-group {
+  grid-column: 2 / span 2;
+  display: flex;
+  gap: 6px;
+  max-width: 180px;
 }
 .seg {
   flex: 1;

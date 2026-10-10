@@ -20,6 +20,8 @@ export interface ReadingSettings {
   /** 阅读区自定义背景色；null = 跟随主题默认。亮暗分开存。 */
   readerBgLight: string | null;
   readerBgDark: string | null;
+  /** 启动时是否恢复上次关闭的标签页（#38）。 */
+  restoreTabs: boolean;
 }
 
 const FONT_KEYS = ["system", "sans", "serif", "mono"] as const;
@@ -58,6 +60,7 @@ function defaults(): ReadingSettings {
     tocPosition: "right",
     readerBgLight: null,
     readerBgDark: null,
+    restoreTabs: true,
   };
 }
 
@@ -153,6 +156,11 @@ function setTocPosition(v: "left" | "right") {
   save();
 }
 
+function setRestoreTabs(v: boolean) {
+  settings.value.restoreTabs = v;
+  save();
+}
+
 function setReaderBgLight(v: string | null) {
   settings.value.readerBgLight = normalizeColor(v);
   save();
@@ -202,6 +210,7 @@ export function useReadingSettings() {
     setEditorFontSize,
     setEditorFontFamily,
     setTocPosition,
+    setRestoreTabs,
     setReaderBgLight,
     setReaderBgDark,
     resetReaderBg,

@@ -77,6 +77,11 @@ const zhCN = {
     tocPosition: "大纲位置",
     tocLeft: "左侧",
     tocRight: "右侧",
+    restoreTabs: "启动时恢复标签页",
+    restoreTabsHint:
+      "打开应用时自动恢复上次关闭时的标签页。关闭后，双击文件启动或手动打开不受影响。",
+    on: "开启",
+    off: "关闭",
     system: "系统默认",
     sans: "无衬线",
     serif: "衬线",

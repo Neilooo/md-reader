@@ -71,6 +71,11 @@ const enUS = {
     tocPosition: "Outline Position",
     tocLeft: "Left",
     tocRight: "Right",
+    restoreTabs: "Restore tabs on startup",
+    restoreTabsHint:
+      "Reopen the tabs from your last session when the app starts. When off, launching via double-click or opening files manually is unaffected.",
+    on: "On",
+    off: "Off",
     system: "System",
     sans: "Sans",
     serif: "Serif",
