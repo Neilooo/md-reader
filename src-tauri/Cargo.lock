@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "md-reader"
-version = "0.3.12"
+version = "0.3.13"
 dependencies = [
  "notify",
  "notify-debouncer-mini",
@@ -2056,6 +2056,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "walkdir",
  "window-vibrancy",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

@@ -34,6 +34,135 @@ const STORAGE_FILE: &str = "settings.json";
 /// 主题键。前端写、setup() 读，两端必须一致。
 const THEME_STORAGE_KEY: &str = "md-reader-theme";
 
+// ---- WebView2 运行时准备（Windows）----
+//
+// 必须在 tauri::Builder::run() 之前调用：wry 创建 WebView2 环境时读取
+// WEBVIEW2_BROWSER_EXECUTABLE_FOLDER，晚于 Runtime 创建再设置就无效了。
+//
+// 两条离线路径：
+// 1. 绿色版/离线版：exe 同目录附带 webview2-runtime/（WebView2 Fixed Version
+//    Runtime 解压目录），直接用它，不依赖系统安装；
+// 2. 系统完全没装 WebView2：弹中文提示引导到下载页，而不是让 wry 抛底层
+//    英文错误（老 Win10 离线机器上很常见）。
+//
+// 返回 false 表示已提示用户、调用方应立即退出。
+#[cfg(windows)]
+pub fn prepare_windows_webview() -> bool {
+    // 1) 便携运行时：<exe 目录>/webview2-runtime/msedgewebview2.exe
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+    {
+        let runtime = exe_dir.join("webview2-runtime");
+        if runtime.join("msedgewebview2.exe").is_file() {
+            std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime);
+            return true;
+        }
+    }
+
+    // 2) 系统运行时（微软官方注册表检测方案）
+    if webview2_installed_version().is_some() {
+        return true;
+    }
+
+    // 3) 缺失：中文提示 + 引导下载
+    show_webview2_missing_dialog();
+    false
+}
+
+/// 已安装的 WebView2 版本号；未安装返回 None。
+///
+/// 微软官方检测方案：运行时注册在 EdgeUpdate Clients 下——按机器安装写
+/// HKLM（安装器是 32 位，64 位系统落在 WOW6432Node），按用户安装写 HKCU。
+/// `pv` 为 "0.0.0.0" 表示未安装（卸载残留）。
+#[cfg(windows)]
+fn webview2_installed_version() -> Option<String> {
+    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+
+    const CLIENT: &str = r"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    let machine = format!(r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{CLIENT}");
+    let machine64 = format!(r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{CLIENT}");
+    let user = format!(r"Software\Microsoft\EdgeUpdate\Clients\{CLIENT}");
+    [
+        (HKEY_LOCAL_MACHINE, machine),
+        (HKEY_LOCAL_MACHINE, machine64),
+        (HKEY_CURRENT_USER, user),
+    ]
+    .into_iter()
+    .find_map(|(root, key)| {
+        read_registry_string(root, &key, "pv").filter(|v| !v.is_empty() && v != "0.0.0.0")
+    })
+}
+
+/// 读取注册表字符串值（REG_SZ）；键或值不存在返回 None。
+#[cfg(windows)]
+fn read_registry_string(
+    root: windows_sys::Win32::System::Registry::HKEY,
+    subkey: &str,
+    value: &str,
+) -> Option<String> {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_SZ};
+
+    let subkey_w: Vec<u16> = subkey.encode_utf16().chain(std::iter::once(0)).collect();
+    let value_w: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut buf = [0u16; 128];
+    let mut size = std::mem::size_of_val(&buf) as u32;
+    let mut value_type = 0u32;
+    let status = unsafe {
+        RegGetValueW(
+            root,
+            subkey_w.as_ptr(),
+            value_w.as_ptr(),
+            RRF_RT_REG_SZ,
+            &mut value_type,
+            buf.as_mut_ptr().cast(),
+            &mut size,
+        )
+    };
+    if status != 0 {
+        return None;
+    }
+    // size 是字节数（含结尾 NUL），转成字符长度再裁掉 NUL
+    let len = (size as usize / 2).saturating_sub(1).min(buf.len());
+    Some(String::from_utf16_lossy(&buf[..len]))
+}
+
+/// WebView2 缺失提示：中文说明两条出路（安装运行时 / 用离线便携版），
+/// 「是」打开下载页，「否」退出。
+#[cfg(windows)]
+fn show_webview2_missing_dialog() {
+    use std::os::windows::process::CommandExt;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, IDYES, MB_ICONWARNING, MB_YESNO,
+    };
+
+    const DOWNLOAD_URL: &str = "https://github.com/Neilooo/md-reader/releases/latest";
+    let text = format!(
+        "MD Reader 需要 Microsoft Edge WebView2 运行时，但当前系统未检测到。\n\n\
+         点「是」打开下载页面，可任选其一：\n\
+         1. MicrosoftEdgeWebView2RuntimeInstallerX64.exe（安装运行时）；\n\
+         2. 离线便携版（内置运行时，解压即用，无需安装）。\n\n\
+         点「否」退出程序。\n\n{DOWNLOAD_URL}"
+    );
+    let text_w: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    let caption: Vec<u16> = "MD Reader".encode_utf16().chain(std::iter::once(0)).collect();
+    let choice = unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text_w.as_ptr(),
+            caption.as_ptr(),
+            MB_YESNO | MB_ICONWARNING,
+        )
+    };
+    if choice == IDYES {
+        // CREATE_NO_WINDOW：避免闪 cmd 黑窗（AGENTS.md 约定）
+        let _ = Command::new("cmd")
+            .args(["/C", "start", "", DOWNLOAD_URL])
+            .creation_flags(0x0800_0000)
+            .spawn();
+    }
+}
+
 /// 给窗口框架（标题栏/边框）应用 Windows Mica 材质，随亮暗主题切换。
 #[cfg(target_os = "windows")]
 fn apply_windows_frame_theme(window: &tauri::WebviewWindow, is_dark: bool) {
