@@ -194,6 +194,7 @@ const {
   setEditorFontFamily,
   setTocPosition,
   setRestoreTabs,
+  setShowFormatToolbar,
   setReaderBgLight,
   setReaderBgDark,
   resetReaderBg,
@@ -497,6 +498,29 @@ async function registerAssociations() {
               {{ name }}
             </option>
           </select>
+        </div>
+
+        <!-- 编辑模式格式化工具栏显隐（标题/加粗/列表等按钮） -->
+        <div class="row">
+          <label>{{ t("settings.formatToolbar") }}</label>
+          <div class="toggle-group" :title="t('settings.formatToolbarHint')">
+            <button
+              type="button"
+              class="seg"
+              :class="{ active: settings.showFormatToolbar }"
+              @click="setShowFormatToolbar(true)"
+            >
+              {{ t("settings.on") }}
+            </button>
+            <button
+              type="button"
+              class="seg"
+              :class="{ active: !settings.showFormatToolbar }"
+              @click="setShowFormatToolbar(false)"
+            >
+              {{ t("settings.off") }}
+            </button>
+          </div>
         </div>
 
         <div class="row">

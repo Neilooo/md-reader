@@ -80,6 +80,9 @@ const zhCN = {
     restoreTabs: "启动时恢复标签页",
     restoreTabsHint:
       "打开应用时自动恢复上次关闭时的标签页。关闭后，双击文件启动或手动打开不受影响。",
+    formatToolbar: "编辑工具栏",
+    formatToolbarHint:
+      "在编辑模式顶部显示格式化工具栏（标题级别、加粗、高亮、列表等）。",
     on: "开启",
     off: "关闭",
     system: "系统默认",
@@ -181,6 +184,21 @@ const zhCN = {
     created: "已创建",
     createFailed: "创建失败",
   },
+  // ---- 编辑模式格式化工具栏（MarkdownEditor）----
+  format: {
+    heading: "标题级别",
+    paragraph: "正文",
+    bold: "加粗",
+    italic: "斜体",
+    underline: "下划线",
+    highlight: "高亮",
+    inlineCode: "行内代码",
+    bulletList: "无序列表",
+    orderedList: "有序列表",
+    quote: "引用",
+    codeBlock: "代码块",
+    horizontalRule: "分割线",
+  },
   // ---- 大纲面板（TocPanel）----
   toc: {
     title: "大纲",
@@ -281,6 +299,10 @@ const zhCN = {
     invalid: "需要 Ctrl 修饰键",
     resetAll: "全部重置",
     reset: "重置",
+    disable: "停用",
+    enable: "启用",
+    disableAll: "全部关闭",
+    enableAll: "全部启用",
     done: "完成",
     toggleMode: "切换预览/编辑模式",
     newFile: "新建文件",

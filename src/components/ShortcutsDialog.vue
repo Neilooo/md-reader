@@ -20,6 +20,10 @@ const {
   resetBinding,
   resetAll,
   isCustom,
+  isEnabled,
+  setEnabled,
+  allDisabled,
+  setAllEnabled,
   normalizeEvent,
   formatBinding,
   isValidCombo,
@@ -53,6 +57,20 @@ function startRecording(id: string) {
 function cancelRecording() {
   recordingId.value = null;
   conflictMsg.value = "";
+}
+
+/** 单个快捷键启用/停用；停用正在录制的那条时先取消录制。 */
+function toggleEnabled(id: string) {
+  const enabling = !isEnabled(id);
+  setEnabled(id, enabling);
+  if (!enabling && recordingId.value === id) cancelRecording();
+}
+
+/** 全部启用 ↔ 全部关闭（按钮文案取决于是否已全部关闭）。 */
+function toggleAllEnabled() {
+  const enableAll = allDisabled();
+  setAllEnabled(enableAll);
+  if (!enableAll) cancelRecording();
 }
 
 /**
@@ -109,10 +127,15 @@ onBeforeUnmount(() => {
         <button class="sc-close" @click="emit('close')">✕</button>
       </div>
       <div class="sc-content">
-        <!-- 三类分组：每行 = 功能描述 + 键位按钮（录制中显示脉冲动画） -->
+        <!-- 三类分组：每行 = 功能描述 + 键位按钮（录制中显示脉冲动画）+ 停用开关 -->
         <div v-for="cat in grouped" :key="cat.key" class="sc-category">
           <div class="sc-cat-title">{{ t(cat.label) }}</div>
-          <div v-for="item in cat.items" :key="item.id" class="sc-item">
+          <div
+            v-for="item in cat.items"
+            :key="item.id"
+            class="sc-item"
+            :class="{ disabled: !item.readonly && !isEnabled(item.id) }"
+          >
             <div class="sc-row">
               <span class="sc-desc">{{ t(`shortcuts.${item.descKey}`) }}</span>
               <div class="sc-binding">
@@ -140,6 +163,19 @@ onBeforeUnmount(() => {
                 >
                   ↺
                 </button>
+                <!-- 单独启用/停用；停用的快捷键不参与按键分发 -->
+                <button
+                  v-if="!item.readonly"
+                  class="sc-toggle"
+                  :class="{ off: !isEnabled(item.id) }"
+                  @click="toggleEnabled(item.id)"
+                >
+                  {{
+                    isEnabled(item.id)
+                      ? t("shortcuts.disable")
+                      : t("shortcuts.enable")
+                  }}
+                </button>
               </div>
             </div>
             <div
@@ -152,6 +188,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="sc-footer">
+        <button class="sc-btn" @click="toggleAllEnabled">
+          {{
+            allDisabled() ? t("shortcuts.enableAll") : t("shortcuts.disableAll")
+          }}
+        </button>
         <button class="sc-btn" @click="resetAll">
           {{ t("shortcuts.resetAll") }}
         </button>
@@ -289,6 +330,36 @@ onBeforeUnmount(() => {
 .sc-reset:hover {
   color: var(--fg);
   background: var(--bg-btn);
+}
+/* 停用开关：默认低调，停用后高亮提示可恢复 */
+.sc-toggle {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sc-toggle:hover {
+  color: var(--fg);
+  background: var(--bg-btn-hover);
+}
+.sc-toggle.off {
+  color: var(--link);
+  border-color: var(--link);
+}
+/* 已停用行：描述与键位变淡，键位加删除线（录制中除外） */
+.sc-item.disabled .sc-desc,
+.sc-item.disabled .sc-key {
+  opacity: 0.4;
+}
+.sc-item.disabled .sc-key {
+  text-decoration: line-through;
+}
+.sc-item.disabled .sc-key.recording {
+  text-decoration: none;
 }
 .sc-conflict {
   font-size: 11px;

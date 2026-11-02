@@ -4,12 +4,14 @@
   - 快捷键（加粗/高亮/行内代码等）从 useShortcuts 的用户可改绑定生成，
     绑定变更时热更新 keymap
   - 内置 CodeMirror 查找/替换面板 + 自绘的「当前/总数」计数器
+  - 顶部格式化工具栏（标题级别/行内格式/块级格式），可在阅读设置里关闭
   - 粘贴图片自动落盘到文档同目录 images/ 并插入相对链接
   对外（defineExpose）提供 App.vue 键盘分发用的接口：查找/替换/跳行/
   可视行定位与滚动（编辑↔预览切换的位置同步锚点）。
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { basicSetup } from "codemirror";
 import {
   Compartment,
@@ -40,17 +42,23 @@ const props = defineProps<{
   theme: "light" | "dark";
   readonly?: boolean;
   currentFile?: string;
+  /** 是否显示顶部格式化工具栏（阅读设置里可关，默认开）。 */
+  showToolbar?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
   (e: "ready"): void;
   (e: "toggle-mode"): void;
+  /** 编辑区滚动/换文档后上报顶部可见源码行（1-based），驱动编辑态大纲高亮。 */
+  (e: "scroll-line", line: number): void;
 }>();
 
 const host = ref<HTMLElement | null>(null);
 // 自绘查找计数器状态（CM 自带面板没有这个信息）
 const searchCounter = ref({ visible: false, current: 0, total: 0 });
+// 当前选区首行的标题级别（0=正文），驱动工具栏下拉回显
+const currentHeading = ref(0);
 let view: EditorView | null = null;
 let searchCounterTimer: number | null = null;
 // 上次计数器计算时的查询指纹，内容/选区没变就跳过重算
@@ -60,7 +68,15 @@ let lastSearchKey = "";
 const themeCompartment = new Compartment();
 const editableCompartment = new Compartment();
 const keymapCompartment = new Compartment();
-const { getBinding, toCodeMirror, overrides } = useShortcuts();
+const { t } = useI18n();
+const {
+  getBinding,
+  toCodeMirror,
+  overrides,
+  isEnabled,
+  disabled,
+  formatBinding,
+} = useShortcuts();
 // 让查找面板的「替换/全部替换」按钮显示出来（默认只搜不换）
 const replacePanelTheme = EditorView.baseTheme({
   ".cm-panel.cm-search [name=replace]": {
@@ -226,50 +242,46 @@ function focusSearchInput() {
 /**
  * 构建格式化快捷键表（加粗/斜体/高亮/下划线/行内代码 + 模式切换/查找/替换）。
  * 绑定来自 useShortcuts（用户可在设置里改），Prec.highest 保证压过
- * basicSetup 自带的默认键。
+ * basicSetup 自带的默认键；已停用的快捷键不注册，让按键回落到编辑器默认行为。
  */
 function buildKeymap() {
+  const actions: { id: string; run: () => boolean }[] = [
+    {
+      id: "highlight",
+      run: () => wrapSelection("<mark>", "</mark>"),
+    },
+    { id: "bold", run: () => wrapSelection("**") },
+    { id: "italic", run: () => wrapSelection("*") },
+    { id: "underline", run: () => wrapSelection("<u>", "</u>") },
+    { id: "inline-code", run: () => wrapSelection("`") },
+    {
+      id: "toggle-mode",
+      run: () => {
+        emit("toggle-mode");
+        return true;
+      },
+    },
+    {
+      id: "find",
+      run: () => {
+        openSearch();
+        return true;
+      },
+    },
+    {
+      id: "replace",
+      run: () => {
+        openReplace();
+        return true;
+      },
+    },
+  ];
   return Prec.highest(
-    keymap.of([
-      {
-        key: toCodeMirror(getBinding("highlight")),
-        run: () => wrapSelection("<mark>", "</mark>"),
-      },
-      { key: toCodeMirror(getBinding("bold")), run: () => wrapSelection("**") },
-      {
-        key: toCodeMirror(getBinding("italic")),
-        run: () => wrapSelection("*"),
-      },
-      {
-        key: toCodeMirror(getBinding("underline")),
-        run: () => wrapSelection("<u>", "</u>"),
-      },
-      {
-        key: toCodeMirror(getBinding("inline-code")),
-        run: () => wrapSelection("`"),
-      },
-      {
-        key: toCodeMirror(getBinding("toggle-mode")),
-        run: () => {
-          emit("toggle-mode");
-          return true;
-        },
-      },
-      {
-        key: toCodeMirror(getBinding("find")),
-        run: () => {
-          openSearch();
-          return true;
-        },
-      },
-      {
-        key: toCodeMirror(getBinding("replace")),
-        run: () => {
-          openReplace();
-          return true;
-        },
-      },
-    ])
+    keymap.of(
+      actions
+        .filter((a) => isEnabled(a.id))
+        .map((a) => ({ key: toCodeMirror(getBinding(a.id)), run: a.run }))
+    )
   );
 }
 
@@ -295,6 +307,9 @@ function createEditor() {
           if (update.docChanged) {
             emit("update:modelValue", update.state.doc.toString());
           }
+          if (update.docChanged || update.selectionSet) {
+            syncHeading();
+          }
           if (
             update.docChanged ||
             update.selectionSet ||
@@ -308,8 +323,11 @@ function createEditor() {
       ],
     }),
   });
+  view.scrollDOM.addEventListener("scroll", onEditorScroll, { passive: true });
   emit("ready");
   updateSearchCounter();
+  syncHeading();
+  emit("scroll-line", getTopVisibleLine());
 }
 
 /** 整体替换文档内容（外部 modelValue 变化时；会触发改动事件回流）。 */
@@ -322,6 +340,7 @@ function replaceDoc(value: string) {
       insert: value,
     },
   });
+  emit("scroll-line", getTopVisibleLine());
 }
 
 /**
@@ -355,12 +374,164 @@ function wrapSelection(prefix: string, suffix = prefix) {
   return true;
 }
 
-/** 编辑器顶部可视行号（编辑→预览切换时的滚动锚点）。 */
+/* ---- 格式化工具栏 ---- */
+
+/** 当前选区覆盖的行（空选区 = 光标所在行）。 */
+function selectedLines(): { from: number; to: number; text: string }[] {
+  if (!view) return [];
+  const doc = view.state.doc;
+  const sel = view.state.selection.main;
+  const start = doc.lineAt(sel.from).number;
+  const end = doc.lineAt(sel.to).number;
+  const lines: { from: number; to: number; text: string }[] = [];
+  for (let n = start; n <= end; n++) lines.push(doc.line(n));
+  return lines;
+}
+
+/** 选区首行的标题级别（0=正文），供下拉回显。 */
+function readHeadingLevel(): number {
+  if (!view) return 0;
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  const m = /^(#{1,6})\s+/.exec(line.text);
+  return m ? m[1].length : 0;
+}
+
+function syncHeading() {
+  currentHeading.value = readHeadingLevel();
+}
+
+/**
+ * 设置标题级别（0=正文）。作用于选区覆盖的所有行；若所有行已经是目标
+ * 级别则整体取消（下拉再选同一级别 = 切回正文），否则统一设置。
+ */
+function applyHeading(level: number) {
+  if (!view) return;
+  const lines = selectedLines();
+  const allMatch = lines.every((line) => {
+    const m = /^(#{1,6})\s+/.exec(line.text);
+    return (m ? m[1].length : 0) === level;
+  });
+  const target = allMatch ? 0 : level;
+  const changes: ChangeSpec[] = lines.map((line) => {
+    const body = line.text.replace(/^#{1,6}\s+/, "");
+    return {
+      from: line.from,
+      to: line.to,
+      insert: target > 0 ? "#".repeat(target) + " " + body : body,
+    };
+  });
+  view.dispatch({ changes, userEvent: "input" });
+  view.focus();
+}
+
+function onHeadingChange(e: Event) {
+  applyHeading(Number((e.target as HTMLSelectElement).value));
+}
+
+/** 目标类型前缀（判断“是否已经是该类型”用）。 */
+function linePrefixRegex(kind: "bullet" | "ordered" | "quote"): RegExp {
+  if (kind === "quote") return /^(\s*)>\s?/;
+  if (kind === "bullet") return /^(\s*)[-*+]\s+/;
+  return /^(\s*)\d+\.\s+/;
+}
+
+/** 剥离前缀用：列表两种类型互相转换，引用只去引用标记。 */
+function stripPrefixRegex(kind: "bullet" | "ordered" | "quote"): RegExp {
+  if (kind === "quote") return /^(\s*)>\s?/;
+  return /^(\s*)(?:[-*+]\s+|\d+\.\s+)/;
+}
+
+/**
+ * 列表/引用前缀切换：所有行都已带目标前缀则移除，否则统一添加；
+ * 有序列表按行重新编号，缩进保留。
+ */
+function toggleLinePrefix(kind: "bullet" | "ordered" | "quote") {
+  if (!view) return;
+  const lines = selectedLines();
+  const sameRe = linePrefixRegex(kind);
+  const stripRe = stripPrefixRegex(kind);
+  const allMatch = lines.every((line) => sameRe.test(line.text));
+  let counter = 1;
+  const changes: ChangeSpec[] = lines.map((line) => {
+    const stripped = line.text.replace(stripRe, "$1");
+    if (allMatch) return { from: line.from, to: line.to, insert: stripped };
+    const indent = /^(\s*)/.exec(stripped)?.[1] ?? "";
+    const body = stripped.slice(indent.length);
+    let prefix = "> ";
+    if (kind === "bullet") prefix = "- ";
+    else if (kind === "ordered") prefix = `${counter++}. `;
+    return { from: line.from, to: line.to, insert: indent + prefix + body };
+  });
+  view.dispatch({ changes, userEvent: "input" });
+  view.focus();
+}
+
+/** 代码块：有选区则包裹，无选区插入空块并把光标放到中间行。 */
+function wrapCodeBlock() {
+  if (!view) return;
+  const sel = view.state.selection.main;
+  if (sel.empty) {
+    view.dispatch({
+      changes: { from: sel.from, insert: "```\n\n```" },
+      selection: EditorSelection.cursor(sel.from + 4),
+      userEvent: "input",
+    });
+  } else {
+    const text = view.state.sliceDoc(sel.from, sel.to);
+    view.dispatch({
+      changes: {
+        from: sel.from,
+        to: sel.to,
+        insert: "```\n" + text + "\n```",
+      },
+      selection: EditorSelection.range(
+        sel.from + 4,
+        sel.from + 4 + text.length
+      ),
+      userEvent: "input",
+    });
+  }
+  view.focus();
+}
+
+/** 分割线：空行直接填 ---，否则在当前行后另起一段插入。 */
+function insertHorizontalRule() {
+  if (!view) return;
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  if (!line.text.trim()) {
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: "---" },
+      userEvent: "input",
+    });
+  } else {
+    view.dispatch({
+      changes: { from: line.to, insert: "\n\n---" },
+      userEvent: "input",
+    });
+  }
+  view.focus();
+}
+
+/** 工具栏按钮 tooltip：文案 + 快捷键（快捷键被停用时不显示提示）。 */
+function formatTitle(id: string, key: string): string {
+  const label = t(`format.${key}`);
+  return isEnabled(id) ? `${label} (${formatBinding(getBinding(id))})` : label;
+}
 function getTopVisibleLine(): number {
   if (!view) return 1;
   const scroller = view.scrollDOM;
   const block = view.lineBlockAtHeight(scroller.scrollTop);
   return view.state.doc.lineAt(block.from).number;
+}
+
+// 编辑区滚动 → rAF 节流上报顶部可见行（编辑态大纲高亮用）
+let scrollRaf = 0;
+function onEditorScroll() {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    emit("scroll-line", getTopVisibleLine());
+  });
 }
 
 /** 滚动到指定行并把光标放到行首（预览→编辑切换时的对位）。 */
@@ -462,6 +633,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   host.value?.removeEventListener("paste", handlePaste, true);
+  if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
+  scrollRaf = 0;
+  view?.scrollDOM.removeEventListener("scroll", onEditorScroll);
   view?.destroy();
   view = null;
   if (searchCounterTimer !== null) {
@@ -496,8 +670,9 @@ watch(
   }
 );
 
+// 快捷键绑定/启停变化 → Compartment 热重配（不重建编辑器）
 watch(
-  overrides,
+  [overrides, disabled],
   () => {
     view?.dispatch({ effects: keymapCompartment.reconfigure(buildKeymap()) });
   },
@@ -515,7 +690,114 @@ defineExpose({
 </script>
 
 <template>
-  <div class="markdown-editor-shell">
+  <div
+    class="markdown-editor-shell"
+    :class="{ 'has-toolbar': showToolbar !== false && !readonly }"
+  >
+    <!-- 格式化工具栏：仅编辑模式显示，阅读设置里可关闭 -->
+    <div v-if="showToolbar !== false && !readonly" class="format-toolbar">
+      <select
+        class="fmt-heading"
+        :value="currentHeading"
+        :title="t('format.heading')"
+        @change="onHeadingChange"
+      >
+        <option :value="0">{{ t("format.paragraph") }}</option>
+        <option v-for="lvl in 6" :key="lvl" :value="lvl">H{{ lvl }}</option>
+      </select>
+      <span class="fmt-sep"></span>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="formatTitle('bold', 'bold')"
+        @mousedown.prevent
+        @click="wrapSelection('**')"
+      >
+        {{ t("format.bold") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="formatTitle('italic', 'italic')"
+        @mousedown.prevent
+        @click="wrapSelection('*')"
+      >
+        {{ t("format.italic") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="formatTitle('underline', 'underline')"
+        @mousedown.prevent
+        @click="wrapSelection('<u>', '</u>')"
+      >
+        {{ t("format.underline") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="formatTitle('highlight', 'highlight')"
+        @mousedown.prevent
+        @click="wrapSelection('<mark>', '</mark>')"
+      >
+        {{ t("format.highlight") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="formatTitle('inline-code', 'inlineCode')"
+        @mousedown.prevent
+        @click="wrapSelection('`')"
+      >
+        {{ t("format.inlineCode") }}
+      </button>
+      <span class="fmt-sep"></span>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="t('format.bulletList')"
+        @mousedown.prevent
+        @click="toggleLinePrefix('bullet')"
+      >
+        {{ t("format.bulletList") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="t('format.orderedList')"
+        @mousedown.prevent
+        @click="toggleLinePrefix('ordered')"
+      >
+        {{ t("format.orderedList") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="t('format.quote')"
+        @mousedown.prevent
+        @click="toggleLinePrefix('quote')"
+      >
+        {{ t("format.quote") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="t('format.codeBlock')"
+        @mousedown.prevent
+        @click="wrapCodeBlock()"
+      >
+        {{ t("format.codeBlock") }}
+      </button>
+      <button
+        type="button"
+        class="fmt-btn"
+        :title="t('format.horizontalRule')"
+        @mousedown.prevent
+        @click="insertHorizontalRule()"
+      >
+        {{ t("format.horizontalRule") }}
+      </button>
+    </div>
     <!-- CodeMirror 挂载宿主 -->
     <div ref="host" class="markdown-editor"></div>
     <!-- 查找计数器浮层（面板打开且查询有效时显示） -->
@@ -531,11 +813,63 @@ defineExpose({
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.format-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-toolbar);
+  overflow-x: auto;
+  white-space: nowrap;
+  user-select: none;
+  scrollbar-width: thin;
+}
+.fmt-heading {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-btn);
+  color: var(--fg);
+  cursor: pointer;
+}
+.fmt-btn {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fmt-btn:hover {
+  background: var(--bg-btn-hover);
+  border-color: var(--border);
+}
+.fmt-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--border);
 }
 .markdown-editor {
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+}
+/* 工具栏占位后，CM 顶部搜索面板下移，计数器同步偏移 */
+.has-toolbar .editor-find-counter {
+  top: 92px;
 }
 .editor-find-counter {
   position: absolute;

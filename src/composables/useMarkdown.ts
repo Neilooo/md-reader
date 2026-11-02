@@ -115,6 +115,8 @@ export interface Heading {
   level: number;
   text: string;
   id: string;
+  /** 标题所在源码行（1-based）；编辑模式大纲定位/高亮靠它。 */
+  line: number;
 }
 
 /** YAML front matter 解析结果（raw 原文 / body 去掉头部的正文 / 起始行号）。 */
@@ -206,7 +208,9 @@ export function extractHeadings(source: string): Heading[] {
       const level = parseInt(t.tag.slice(1), 10);
       const next = tokens[i + 1];
       const text = next && next.type === "inline" ? next.content : "";
-      headings.push({ level, text, id: idAttr });
+      // 与 data-source-line 同一套换算：token.map 是正文内 0-based 行号
+      const line = t.map ? t.map[0] + 1 + env.sourceLineOffset : 0;
+      headings.push({ level, text, id: idAttr, line });
     }
   }
   return headings;

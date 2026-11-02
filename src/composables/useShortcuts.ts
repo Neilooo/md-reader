@@ -2,8 +2,10 @@
  * 快捷键系统（模块级单例）：
  * - DEFS 定义全部快捷键（默认绑定、生效目标、分类、i18n 描述键）
  * - 用户自定义绑定存 localStorage["md-reader-shortcuts"]，只存与默认不同的
+ * - 被关闭（停用）的快捷键 id 存 localStorage["md-reader-shortcut-disabled"]，
+ *   停用后分发端（App.vue / CodeMirror keymap）直接跳过，按键回落到默认行为
  * - App.vue 的 window keydown 分发和 MarkdownEditor 的 CodeMirror keymap
- *   都从 getBinding() 取值，所以改绑定两边立即生效
+ *   都从 getBinding() + isEnabled() 取值，所以改绑定/停用两边立即生效
  * - ShortcutsDialog 的展示/录制/冲突检测也走这里
  */
 
@@ -236,6 +238,8 @@ for (const def of DEFS) {
 }
 
 const STORAGE = "md-reader-shortcuts";
+/** 停用集合单独一个键：旧版本只认识 STORAGE，分开存可无损兼容。 */
+const STORAGE_DISABLED = "md-reader-shortcut-disabled";
 
 /** 从 localStorage 读用户自定义（损坏数据静默忽略）。 */
 function loadOverrides(): Record<string, string> {
@@ -248,11 +252,33 @@ function loadOverrides(): Record<string, string> {
   return {};
 }
 
+/** 读停用集合（只保留字符串 id，防止脏数据）。 */
+function loadDisabled(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_DISABLED);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        return new Set(list.filter((id): id is string => typeof id === "string"));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
 // 用户改过的绑定（id → 归一化组合串），模块级单例
 const overrides = ref<Record<string, string>>(loadOverrides());
+// 被关闭的快捷键 id 集合（停用后不参与按键分发）
+const disabled = ref<Set<string>>(loadDisabled());
 
 function save() {
   localStorage.setItem(STORAGE, JSON.stringify(overrides.value));
+}
+
+function saveDisabled() {
+  localStorage.setItem(STORAGE_DISABLED, JSON.stringify([...disabled.value]));
 }
 
 /** 取某快捷键的当前生效绑定（自定义优先，无则默认）。 */
@@ -300,15 +326,47 @@ function resetBinding(id: string) {
   save();
 }
 
-/** 恢复全部默认。 */
+/** 恢复全部默认：绑定回到默认值，并重新启用所有被关闭的快捷键。 */
 function resetAll() {
   overrides.value = {};
+  disabled.value = new Set();
   save();
+  saveDisabled();
 }
 
 /** 该快捷键是否被用户自定义过（设置页显示「已自定义」标记）。 */
 function isCustom(id: string): boolean {
   return id in overrides.value;
+}
+
+/** 快捷键当前是否生效（未停用）。 */
+function isEnabled(id: string): boolean {
+  return !disabled.value.has(id);
+}
+
+/** 单个快捷键启用/停用（readonly 项固定生效，不允许停用）。 */
+function setEnabled(id: string, enabled: boolean) {
+  const def = getDef(id);
+  if (!def || def.readonly) return;
+  if (enabled === isEnabled(id)) return;
+  const next = new Set(disabled.value);
+  if (enabled) next.delete(id);
+  else next.add(id);
+  disabled.value = next;
+  saveDisabled();
+}
+
+/** 是否所有可停用的快捷键都已关闭（决定「全部关闭/全部启用」按钮文案）。 */
+function allDisabled(): boolean {
+  return DEFS.filter((d) => !d.readonly).every((d) => disabled.value.has(d.id));
+}
+
+/** 全部启用/全部关闭（readonly 项不参与）。 */
+function setAllEnabled(enabled: boolean) {
+  disabled.value = enabled
+    ? new Set()
+    : new Set(DEFS.filter((d) => !d.readonly).map((d) => d.id));
+  saveDisabled();
 }
 
 /** 把键盘事件转成组合串（Ctrl/Meta 统一为 Ctrl，单字母小写）。 */
@@ -361,12 +419,17 @@ export function useShortcuts() {
   return {
     defs: DEFS,
     overrides,
+    disabled,
     getBinding,
     getDef,
     setBinding,
     resetBinding,
     resetAll,
     isCustom,
+    isEnabled,
+    setEnabled,
+    allDisabled,
+    setAllEnabled,
     normalizeEvent,
     toCodeMirror,
     formatBinding,

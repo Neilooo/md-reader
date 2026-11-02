@@ -73,9 +73,11 @@ const {
   setFontSize,
   setEditorFontSize,
 } = useReadingSettings();
-const { getBinding, normalizeEvent, formatBinding } = useShortcuts();
-/** 快捷键提示后缀，如 " (Ctrl+S)"，拼在菜单/按钮 title 上。 */
+const { getBinding, normalizeEvent, formatBinding, isEnabled } =
+  useShortcuts();
+/** 快捷键提示后缀，如 " (Ctrl+S)"，拼在菜单/按钮 title 上；已停用的不提示。 */
 function shortcutSuffix(id: string): string {
+  if (!isEnabled(id)) return "";
   return " (" + formatBinding(getBinding(id)) + ")";
 }
 const {
@@ -627,6 +629,39 @@ function saveCurrentScroll() {
   }
 }
 
+// ---- 编辑模式大纲：编辑器滚动上报顶部源码行 → 映射高亮 / 点击定位 ----
+/** 编辑器顶部可见源码行（最近一次 scroll-line 上报）。 */
+const editorTopLine = ref(1);
+
+/** 按源码行找应高亮的标题：最后一个 line ≤ 顶部行的标题。 */
+function syncActiveHeadingFromLine(line: number) {
+  let current = "";
+  for (const h of headings.value) {
+    if (h.line <= line) current = h.id;
+    else break;
+  }
+  activeId.value = current;
+}
+
+/** MarkdownEditor 的 scroll-line 事件：仅编辑态参与大纲高亮。 */
+function onEditorScrollLine(line: number) {
+  if (!isEditing.value) return;
+  editorTopLine.value = line;
+  syncActiveHeadingFromLine(line);
+}
+
+/** 目录点击：编辑态按标题源码行定位编辑器，预览态滚动预览 DOM。 */
+function handleTocJump(id: string) {
+  if (isEditing.value) {
+    const heading = headings.value.find((h) => h.id === id);
+    if (heading && heading.line > 0) {
+      editorRef.value?.scrollToLine(heading.line);
+    }
+    return;
+  }
+  jumpTo(id);
+}
+
 /** 给无扩展名/其他扩展的保存路径补 .md（新建文件对话框的容错）。 */
 function withMarkdownExtension(path: string): string {
   return /\.(md|markdown|mdx|txt)$/i.test(path) ? path : `${path}.md`;
@@ -1018,66 +1053,65 @@ function onKeydown(e: KeyboardEvent) {
   if (!mod) return;
   const combo = normalizeEvent(e);
   const isEdit = isEditing.value;
+  /**
+   * 已启用的快捷键且组合匹配。停用的快捷键直接不匹配 → 不 preventDefault，
+   * 按键回落到浏览器/编辑器默认行为（这就是"关闭快捷键"的语义）。
+   */
+  const hit = (id: string) => isEnabled(id) && combo === getBinding(id);
 
-  if (combo === getBinding("toggle-mode")) {
+  if (hit("toggle-mode")) {
     e.preventDefault();
     toggleEditorMode();
-  } else if (combo === getBinding("new-file")) {
+  } else if (hit("new-file")) {
     e.preventDefault();
     void createNewFile();
-  } else if (combo === getBinding("open-file")) {
+  } else if (hit("open-file")) {
     e.preventDefault();
     void pickFile();
-  } else if (combo === getBinding("search-panel")) {
+  } else if (hit("search-panel")) {
     e.preventDefault();
     leftMode.value = "search";
     showFileTree.value = true;
-  } else if (combo === getBinding("save-as")) {
+  } else if (hit("save-as")) {
     e.preventDefault();
     void saveAsCurrentFile();
-  } else if (combo === getBinding("settings")) {
+  } else if (hit("settings")) {
     e.preventDefault();
     showSettings.value = true;
-  } else if (combo === getBinding("print")) {
+  } else if (hit("print")) {
     e.preventDefault();
     doPrint();
-  } else if (combo === getBinding("save")) {
+  } else if (hit("save")) {
     e.preventDefault();
     void saveCurrentFile();
-  } else if (combo === getBinding("zoom-in")) {
+  } else if (hit("zoom-in")) {
     e.preventDefault();
     zoomFont(1);
-  } else if (combo === getBinding("zoom-out")) {
+  } else if (hit("zoom-out")) {
     e.preventDefault();
     zoomFont(-1);
-  } else if (combo === getBinding("zoom-reset")) {
+  } else if (hit("zoom-reset")) {
     e.preventDefault();
     resetFont();
-  } else if (combo === getBinding("close-tab")) {
+  } else if (hit("close-tab")) {
     e.preventDefault();
     if (activeTabId.value) void closeTab(activeTabId.value);
-  } else if (
-    combo === getBinding("next-tab") ||
-    combo === getBinding("next-tab-right")
-  ) {
+  } else if (hit("next-tab") || hit("next-tab-right")) {
     e.preventDefault();
     if (tabs.value.length > 1) switchToTab(findNextTab());
-  } else if (
-    combo === getBinding("prev-tab") ||
-    combo === getBinding("prev-tab-left")
-  ) {
+  } else if (hit("prev-tab") || hit("prev-tab-left")) {
     e.preventDefault();
     if (tabs.value.length > 1) switchToTab(findPrevTab());
-  } else if (isEdit && combo === getBinding("find")) {
+  } else if (isEdit && hit("find")) {
     e.preventDefault();
     editorRef.value?.openSearch();
-  } else if (isEdit && combo === getBinding("replace")) {
+  } else if (isEdit && hit("replace")) {
     e.preventDefault();
     editorRef.value?.openReplace();
-  } else if (isEdit && combo === getBinding("go-to-line")) {
+  } else if (isEdit && hit("go-to-line")) {
     e.preventDefault();
     editorRef.value?.goToLine();
-  } else if (!isEdit && combo === getBinding("find")) {
+  } else if (!isEdit && hit("find")) {
     e.preventDefault();
     find.open();
   }
@@ -1238,6 +1272,11 @@ watch(errorMsg, (v) => {
 // 关掉所有文件回到欢迎页时刷新最近列表（可能有删掉的文件）
 watch(hasActiveFile, (v) => {
   if (!v) void refreshRecent();
+});
+
+// 编辑态手打标题时 headings 防抖更新，按记住的顶部行重算大纲高亮
+watch(headings, () => {
+  if (isEditing.value) syncActiveHeadingFromLine(editorTopLine.value);
 });
 
 // 目录被挪到右侧后，「大纲」不能留在左侧，回落到文件树
@@ -1635,7 +1674,7 @@ watch(
           />
         </div>
         <div v-else-if="leftMode === 'outline'" class="panel-body">
-          <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
+          <TocPanel :headings="headings" :active-id="activeId" @jump="handleTocJump" />
         </div>
       </aside>
 
@@ -1687,8 +1726,10 @@ watch(
           :model-value="draftContent"
           :theme="effectiveTheme"
           :current-file="currentFile"
+          :show-toolbar="readingSettings.showFormatToolbar"
           @update:model-value="onDraftUpdate"
           @toggle-mode="toggleEditorMode"
+          @scroll-line="onEditorScrollLine"
         />
         <MarkdownView
           v-else
@@ -1713,7 +1754,7 @@ watch(
         class="right"
         :style="{ width: rightWidth + 'px' }"
       >
-        <TocPanel :headings="headings" :active-id="activeId" @jump="jumpTo" />
+        <TocPanel :headings="headings" :active-id="activeId" @jump="handleTocJump" />
       </aside>
     </main>
 

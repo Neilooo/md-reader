@@ -22,6 +22,8 @@ export interface ReadingSettings {
   readerBgDark: string | null;
   /** 启动时是否恢复上次关闭的标签页（#38）。 */
   restoreTabs: boolean;
+  /** 编辑模式是否显示顶部格式化工具栏。 */
+  showFormatToolbar: boolean;
 }
 
 const FONT_KEYS = ["system", "sans", "serif", "mono"] as const;
@@ -61,6 +63,7 @@ function defaults(): ReadingSettings {
     readerBgLight: null,
     readerBgDark: null,
     restoreTabs: true,
+    showFormatToolbar: true,
   };
 }
 
@@ -161,6 +164,11 @@ function setRestoreTabs(v: boolean) {
   save();
 }
 
+function setShowFormatToolbar(v: boolean) {
+  settings.value.showFormatToolbar = v;
+  save();
+}
+
 function setReaderBgLight(v: string | null) {
   settings.value.readerBgLight = normalizeColor(v);
   save();
@@ -211,6 +219,7 @@ export function useReadingSettings() {
     setEditorFontFamily,
     setTocPosition,
     setRestoreTabs,
+    setShowFormatToolbar,
     setReaderBgLight,
     setReaderBgDark,
     resetReaderBg,
