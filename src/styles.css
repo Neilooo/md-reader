@@ -67,6 +67,8 @@
   --toc-active-line: var(--link);
   --toc-active-shadow: none;
   --reader-bg: var(--reader-bg-light, var(--bg));
+  /* 编辑区行号栏：设了自定义阅读背景时跟随，否则用工具栏灰（保留层次） */
+  --editor-gutter-bg: var(--reader-bg-light, var(--bg-toolbar));
   color-scheme: light;
 }
 
@@ -139,6 +141,8 @@
   --toc-active-line: #4fd1c5;
   --toc-active-shadow: inset 2px 0 0 var(--toc-active-line);
   --reader-bg: var(--reader-bg-dark, var(--bg));
+  /* 编辑区行号栏：设了自定义阅读背景时跟随，否则用工具栏色（保留层次） */
+  --editor-gutter-bg: var(--reader-bg-dark, var(--bg-toolbar));
   color-scheme: dark;
 }
 

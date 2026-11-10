@@ -107,8 +107,9 @@ pub struct MdFile {
     pub modified_ms: i64,
 }
 
-/// 全局唯一的文件监听器状态。单 watcher 设计：同一时刻只监听一个根目录，
-/// 切换目录时旧的 debounce 后 watcher 被 Drop（置 None）以释放句柄。
+/// 全局唯一的文件监听器状态：同一时刻一个 debouncer，可同时监听
+/// 一个根目录（递归）与若干单独打开的文件（非递归）。切换目标时旧的
+/// debouncer 被 Drop（置 None）以释放句柄。
 #[derive(Default)]
 pub struct WatcherState {
     inner: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
@@ -193,18 +194,19 @@ fn list_md_files(root: String) -> Result<Vec<MdFile>, String> {
 /// emit `md-reader://file-changed` 事件——事件名与前端 `useFileWatcher.ts`
 /// 耦合，改名必须两端同步。
 ///
-/// 先置 None 丢弃旧 watcher（切换目录场景），再装新的；防抖避免编辑器
-/// 连续保存触发的风暴。
+/// 同步监听目标：可选根目录（递归监听全部 Markdown）+ 打开的文件列表
+/// （非递归，覆盖没有打开文件夹时单独打开的文件）。
+///
+/// 每次调用重建 debouncer（切换目录 / 标签增删时调用，成本可忽略），
+/// 空目标即只保留一个空监听。不存在的文件静默跳过（标签可能指向已删文件）。
 #[tauri::command]
-fn start_watch(
+fn set_watch_targets(
     app: tauri::AppHandle,
     state: State<'_, WatcherState>,
-    root: String,
+    root: Option<String>,
+    files: Vec<String>,
 ) -> Result<(), String> {
-    let path = PathBuf::from(&root);
-    if !path.exists() {
-        return Err(format!("Path not found: {}", root));
-    }
+    // 先置 None 丢弃旧 watcher，再装新的
     {
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
         *guard = None;
@@ -228,10 +230,34 @@ fn start_watch(
     )
     .map_err(|e| e.to_string())?;
 
-    debouncer
-        .watcher()
-        .watch(&path, RecursiveMode::Recursive)
-        .map_err(|e| e.to_string())?;
+    // 1) 根目录：递归监听（文件树 + 目录内所有打开的文件）
+    let mut watched_root: Option<PathBuf> = None;
+    if let Some(root) = root {
+        let path = PathBuf::from(&root);
+        if path.exists() {
+            if let Err(e) = debouncer.watcher().watch(&path, RecursiveMode::Recursive) {
+                eprintln!("watch root failed: {e:?}");
+            } else {
+                watched_root = Some(path);
+            }
+        }
+    }
+
+    // 2) 单独打开的文件：非递归监听；去重、跳过不存在/非文件的路径。
+    //    根目录内的文件由递归监听覆盖，前端已过滤，不必重复。
+    let mut seen = std::collections::HashSet::new();
+    for file in files {
+        let path = PathBuf::from(&file);
+        if !path.is_file() || !seen.insert(path.clone()) {
+            continue;
+        }
+        if let Err(e) = debouncer
+            .watcher()
+            .watch(&path, RecursiveMode::NonRecursive)
+        {
+            eprintln!("watch file failed ({file}): {e:?}");
+        }
+    }
 
     {
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
@@ -239,7 +265,7 @@ fn start_watch(
     }
     {
         let mut cur = state.current_root.lock().map_err(|e| e.to_string())?;
-        *cur = Some(path);
+        *cur = watched_root;
     }
     Ok(())
 }
@@ -682,7 +708,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_md_files,
-            start_watch,
+            set_watch_targets,
             stop_watch,
             search_in_files,
             initial_open_file,

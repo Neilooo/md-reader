@@ -91,7 +91,8 @@ const replacePanelTheme = EditorView.baseTheme({
 const editorBaseTheme = EditorView.theme({
   "&": {
     height: "100%",
-    backgroundColor: "var(--bg)",
+    // 跟随阅读区自定义背景（未设置时 --reader-bg 自动回落到 --bg，#44）
+    backgroundColor: "var(--reader-bg, var(--bg))",
     color: "var(--fg)",
   },
   ".cm-scroller": {
@@ -107,7 +108,7 @@ const editorBaseTheme = EditorView.theme({
     padding: "0 16px",
   },
   ".cm-gutters": {
-    backgroundColor: "var(--bg-toolbar)",
+    backgroundColor: "var(--editor-gutter-bg, var(--bg-toolbar))",
     color: "var(--fg-muted)",
     borderRight: "1px solid var(--border)",
   },

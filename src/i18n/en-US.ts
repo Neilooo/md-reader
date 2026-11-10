@@ -10,6 +10,7 @@ const enUS = {
     file: "File",
     folder: "Folder",
     refresh: "Refresh",
+    refreshHint: "Refresh file tree and current file",
     closeFolder: "Close folder",
     noFile: "No file opened",
     files: "Files",

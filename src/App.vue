@@ -358,19 +358,23 @@ function findPrevTab(): string {
   return tabs.value[(idx - 1 + tabs.value.length) % tabs.value.length].id;
 }
 
-/** 工具栏刷新：刷新文件树；正在编辑时记住编辑器可视行以便回来时对位。 */
+/** 工具栏刷新：刷新文件树 + 从磁盘重读当前文件（脏草稿走外部变更确认）。 */
 async function handleRefresh() {
   saveCurrentScroll();
   if (isEditing.value && editorRef.value && activeTab.value) {
     activeTab.value.pendingSourceLine = editorRef.value.getTopVisibleLine();
   }
-  if (activeTab.value?.path) {
-    addSuppress(activeTab.value.path);
+  if (rootDir.value) {
+    if (activeTab.value?.path) {
+      addSuppress(activeTab.value.path);
+    }
+    await refreshTree();
+    if (activeTab.value?.path) {
+      scheduleSuppressClear(activeTab.value.path);
+    }
   }
-  await refreshTree();
-  if (activeTab.value?.path) {
-    scheduleSuppressClear(activeTab.value.path);
-  }
+  const tab = activeTab.value;
+  if (tab?.path) await refreshTab(tab.id);
 }
 
 /**
@@ -729,18 +733,45 @@ async function pickFile() {
 /** 选择目录并开始监听（文件树根目录切换）。 */
 async function pickFolder() {
   const dir = await openFolder();
-  if (dir) await startWatching(dir);
+  if (dir) await watcher.sync(dir, watchFilePaths());
 }
 
-/** 启动目录监听：变更先刷文件树，150ms 后再分发到各标签（给树刷新让路）。 */
-async function startWatching(dir: string) {
-  await watcher.start(dir, async (paths) => {
-    await refreshTree();
-    window.setTimeout(() => {
-      void onFilesChanged(paths);
-    }, 150);
-  });
+/**
+ * 需要单独监听的文件：所有已打开标签，排除根目录内的路径
+ * （根目录用递归监听，已覆盖这些文件，避免重复事件）。
+ */
+function watchFilePaths(): string[] {
+  const root = rootDir.value
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+  return tabs.value
+    .map((tb) => tb.path)
+    .filter((p) => {
+      if (!p) return false;
+      if (!root) return true;
+      const normalized = p.replace(/\\/g, "/").toLowerCase();
+      return !normalized.startsWith(root + "/");
+    });
 }
+
+let watchSyncTimer: number | null = null;
+/** 同步 watcher 目标（标签增删/另存为/文件夹切换后调用，200ms 合并多次变化）。 */
+function scheduleWatchSync() {
+  if (watchSyncTimer) window.clearTimeout(watchSyncTimer);
+  watchSyncTimer = window.setTimeout(() => {
+    watchSyncTimer = null;
+    void watcher.sync(rootDir.value, watchFilePaths());
+  }, 200);
+}
+
+// 监听变更分发（回调只注册一次）：先刷文件树，150ms 后再分发到各标签
+watcher.onChanged(async (paths) => {
+  await refreshTree();
+  window.setTimeout(() => {
+    void onFilesChanged(paths);
+  }, 150);
+});
 
 /**
  * watcher 变更分发：单 watcher 匹配所有标签。
@@ -766,8 +797,9 @@ async function onFilesChanged(paths: string[]) {
 }
 
 function closeFolder() {
-  void watcher.stop();
+  // 关掉文件树但仍保留已打开标签的文件监听（#43 单文件自动刷新）
   clearRoot();
+  scheduleWatchSync();
 }
 
 /** 首次启动时取 argv 里的目标文件（文件关联/命令行唤起）。 */
@@ -1170,7 +1202,6 @@ onMounted(async () => {
   void checkPandoc().then((info) => (pandocInfo.value = info));
   void checkPdfEngine().then((p) => (pdfEnginePath.value = p));
   await restoreRoot();
-  if (rootDir.value) await startWatching(rootDir.value);
 
   // Listen for file-open events fired by Rust (file association / single-instance).
   try {
@@ -1216,6 +1247,8 @@ onMounted(async () => {
   } catch {
     /* backend build without the pending-file queue — nothing to drain */
   }
+  // 标签与根目录都就绪后同步监听目标：目录递归 + 单独打开的文件（#43）
+  await watcher.sync(rootDir.value, watchFilePaths());
   // 拖放：取第一个 Markdown 类型的文件打开
   try {
     const webview = getCurrentWebview();
@@ -1241,6 +1274,7 @@ onUnmounted(() => {
   unlistenOpen?.();
   unlistenClose?.();
   if (headingTimer) clearTimeout(headingTimer);
+  if (watchSyncTimer) window.clearTimeout(watchSyncTimer);
   void watcher.stop();
   window.removeEventListener("keydown", onKeydown);
   window.removeEventListener("wheel", onWheel);
@@ -1250,6 +1284,12 @@ onUnmounted(() => {
 watch(
   () => tabs.value.map((tb) => tb.path).join("\n"),
   () => persist()
+);
+
+// 标签集合变化 → 同步文件监听目标（单独打开的文件也要能自动刷新，#43）
+watch(
+  () => tabs.value.map((tb) => tb.path).join("\n"),
+  () => scheduleWatchSync()
 );
 
 // toast / 错误条自动消失
@@ -1311,11 +1351,11 @@ watch(
         {{ t("app.folder") }}
       </button>
       <button
-        v-if="rootDir"
+        v-if="rootDir || hasActiveFile"
         class="btn"
         @click="handleRefresh"
         :disabled="treeLoading"
-        :title="t('app.refresh')"
+        :title="t('app.refreshHint')"
       >
         ↻
       </button>
@@ -1927,7 +1967,8 @@ watch(
 }
 .viewer.editing {
   overflow: hidden;
-  background: var(--bg);
+  /* 编辑区与预览一致地跟随自定义阅读背景（#44） */
+  background: var(--reader-bg, var(--bg));
 }
 .empty {
   height: 100%;

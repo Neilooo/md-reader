@@ -13,6 +13,7 @@ const zhCN = {
     file: "文件",
     folder: "文件夹",
     refresh: "刷新",
+    refreshHint: "刷新文件树与当前文件",
     closeFolder: "关闭文件夹",
     noFile: "未打开文件",
     files: "文件",
