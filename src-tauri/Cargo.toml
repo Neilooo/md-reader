@@ -1,6 +1,6 @@
 [package]
 name = "md-reader"
-version = "0.3.13"
+version = "0.3.14"
 description = "A lightweight, fast, WYSIWYG Markdown desktop reader"
 authors = ["Neilooo"]
 license = "MIT"
