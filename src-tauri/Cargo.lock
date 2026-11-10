@@ -2056,6 +2056,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "walkdir",
  "window-vibrancy",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

@@ -36,6 +36,15 @@ walkdir = "2"
 notify = "6"
 notify-debouncer-mini = "0.4"
 
+# 文件关联图标刷新：SHChangeNotify（Win32_UI_Shell）
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+] }
+
 [profile.release]
 # panic = abort：任何 panic 都会立即退出进程（无 unwind）。所以后端代码里
 # 任何可能 panic 的点（unwrap / state() / 锁中毒）都要当成崩溃对待——

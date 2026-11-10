@@ -395,9 +395,19 @@ fn reg_add(args: Vec<String>) -> Result<(), String> {
 }
 
 /// 通知 Shell 文件关联发生了变化（刷新资源管理器图标与右键「打开方式」）。
-/// ie4uinit -show 是通用的缓存刷新触发器。
+/// SHChangeNotify(SHCNE_ASSOCCHANGED) 才会真正让 Explorer 丢弃关联图标缓存；
+/// ie4uinit -show 只做辅助（旧版仅调用它时，列表模式图标仍会显示旧图）。
 #[cfg(target_os = "windows")]
 fn notify_shell_assoc_changed() {
+    use windows_sys::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+    unsafe {
+        SHChangeNotify(
+            SHCNE_ASSOCCHANGED as i32,
+            SHCNF_IDLIST,
+            std::ptr::null(),
+            std::ptr::null(),
+        );
+    }
     let _ = hidden_command("ie4uinit.exe").arg("-show").output();
 }
 
@@ -414,12 +424,18 @@ fn notify_shell_assoc_changed() {
 /// ProgID 方案（而非直接写 .md 的默认值指向 exe）是刻意的：不抢占用户的
 /// 默认应用设置，仅在候选列表里出现；用户在系统设置里主动设为默认后才接管。
 #[cfg(target_os = "windows")]
-fn register_windows_file_associations() -> Result<(), String> {
+fn register_windows_file_associations(app: &tauri::AppHandle) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe_path = strip_windows_extended_prefix(exe.to_string_lossy().to_string());
     // 打开命令：exe 路径与 %1（被双击的文件）都要加引号，兼容含空格路径。
     let open_command = format!("\"{}\" \"%1\"", exe_path);
-    let icon = format!("\"{}\",0", exe_path);
+    // 文件类型图标：优先用随程序分发的 .md 专用图标（docx 风格），
+    // 写不到用户目录时回退到 exe 自带图标。
+    let custom_icon = markdown_file_icon_path(app);
+    let icon = custom_icon
+        .as_ref()
+        .map(|p| format!("\"{}\",0", p))
+        .unwrap_or_else(|| format!("\"{}\",0", exe_path));
     let prog_id = "MDReader.Markdown";
     let app_key = r"HKCU\Software\Classes\Applications\md-reader.exe";
 
@@ -446,7 +462,7 @@ fn register_windows_file_associations() -> Result<(), String> {
         format!(r"HKCU\Software\Classes\{}\DefaultIcon", prog_id),
         "/ve".into(),
         "/d".into(),
-        icon,
+        icon.clone(),
         "/f".into(),
     ])?;
     // --- ProgID 的 open 动词：默认动作设为 open，命令行指向本 exe ---
@@ -484,8 +500,38 @@ fn register_windows_file_associations() -> Result<(), String> {
         open_command,
         "/f".into(),
     ])?;
+    // Applications 项的图标：当系统默认关联走 Applications\md-reader.exe 时，
+    // Explorer 会用这里的 DefaultIcon（不设会回退到 exe 图标）。
+    if custom_icon.is_some() {
+        reg_add(vec![
+            "add".into(),
+            format!(r"{}\DefaultIcon", app_key),
+            "/ve".into(),
+            "/d".into(),
+            icon.clone(),
+            "/f".into(),
+        ])?;
+    }
 
     // --- 每个扩展名：默认值指向 ProgID + Content Type + OpenWith 注册 ---
+    // MSI 安装器会另外注册 "MD Reader.md" 等 ProgID（且没有 DefaultIcon，
+    // 默认显示应用图标）；有专用图标时一并补上，让安装版关联也显示文档图标。
+    if let Some(custom) = &custom_icon {
+        let icon_value = format!("\"{}\",0", custom);
+        for prog in ["MD Reader.md", "MD Reader.markdown", "MD Reader.mdx"] {
+            let key = format!(r"HKCU\Software\Classes\{}", prog);
+            if reg_key_exists(&key) {
+                let _ = reg_add(vec![
+                    "add".into(),
+                    format!(r"{}\DefaultIcon", key),
+                    "/ve".into(),
+                    "/d".into(),
+                    icon_value.clone(),
+                    "/f".into(),
+                ]);
+            }
+        }
+    }
     for (ext, content_type) in [
         ("md", "text/markdown"),
         ("markdown", "text/markdown"),
@@ -546,16 +592,107 @@ fn register_windows_file_associations() -> Result<(), String> {
     Ok(())
 }
 
+/// .md 文件类型图标的原始字节（编译期内嵌，绿色版无需额外文件）。
+#[cfg(target_os = "windows")]
+const FILE_TYPE_ICON: &[u8] = include_bytes!("../icons/file-markdown.ico");
+
+/// 把内嵌的文件类型图标落到用户本地数据目录，返回可被注册表引用的路径。
+/// 写入失败返回 None，调用方回退到 exe 图标。
+#[cfg(target_os = "windows")]
+fn markdown_file_icon_path(app: &tauri::AppHandle) -> Option<String> {
+    let dir = app.path().app_local_data_dir().ok()?;
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join("file-markdown.ico");
+    // 内容不同才重写：升级版本换了图标后能自动更新
+    let needs_write = std::fs::read(&path)
+        .map(|existing| existing != FILE_TYPE_ICON)
+        .unwrap_or(true);
+    if needs_write {
+        std::fs::write(&path, FILE_TYPE_ICON).ok()?;
+    }
+    Some(path.to_string_lossy().to_string())
+}
+
+/// 注册表键是否存在（reg query，静默，只用于判断是否已注册过关联）。
+#[cfg(target_os = "windows")]
+fn reg_key_exists(key: &str) -> bool {
+    hidden_command("reg")
+        .args(["query", key])
+        .output()
+        .map(|out| out.status.success())
+        .unwrap_or(false)
+}
+
+/// 启动时刷新「已注册关联」的文件图标。
+///
+/// 老版本只把 DefaultIcon 指向 exe 自带图标；升级到带专用图标的版本后，
+/// 用户不必重新点「注册文件关联」——这里检测到关联键存在就改写 DefaultIcon。
+/// 只更新已存在的键，不会主动创建关联；用版本+图标哈希做标记，每个版本
+/// 只执行一次（含 shell 图标缓存刷新）。
+#[cfg(target_os = "windows")]
+fn refresh_file_association_icon(app: &tauri::AppHandle) {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let Some(icon_path) = markdown_file_icon_path(app) else {
+        return;
+    };
+    let Ok(dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    let marker_path = dir.join("file-icon-version");
+    let mut hasher = DefaultHasher::new();
+    FILE_TYPE_ICON.hash(&mut hasher);
+    let marker = format!("{}:{:x}", env!("CARGO_PKG_VERSION"), hasher.finish());
+    if std::fs::read_to_string(&marker_path).ok().as_deref() == Some(marker.as_str()) {
+        return;
+    }
+
+    let icon_value = format!("\"{}\",0", icon_path);
+    let mut targets: Vec<String> = Vec::new();
+    let prog_id_key = r"HKCU\Software\Classes\MDReader.Markdown";
+    if reg_key_exists(prog_id_key) {
+        targets.push(format!(r"{}\DefaultIcon", prog_id_key));
+    }
+    let app_key = r"HKCU\Software\Classes\Applications\md-reader.exe";
+    if reg_key_exists(app_key) {
+        targets.push(format!(r"{}\DefaultIcon", app_key));
+    }
+    // MSI 安装器注册的 ProgID（存在才更新，避免无端创建键）
+    for prog in ["MD Reader.md", "MD Reader.markdown", "MD Reader.mdx"] {
+        let key = format!(r"HKCU\Software\Classes\{}", prog);
+        if reg_key_exists(&key) {
+            targets.push(format!(r"{}\DefaultIcon", key));
+        }
+    }
+
+    if targets.is_empty() {
+        return;
+    }
+    for key in targets {
+        let _ = reg_add(vec![
+            "add".into(),
+            key,
+            "/ve".into(),
+            "/d".into(),
+            icon_value.clone(),
+            "/f".into(),
+        ]);
+    }
+    let _ = std::fs::write(&marker_path, &marker);
+    notify_shell_assoc_changed();
+}
+
 /// 文件关联注册命令（跨平台壳）。Windows 之外的平台返回不支持错误。
 #[cfg(target_os = "windows")]
 #[tauri::command]
-fn register_file_associations() -> Result<(), String> {
-    register_windows_file_associations()
+fn register_file_associations(app: tauri::AppHandle) -> Result<(), String> {
+    register_windows_file_associations(&app)
 }
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn register_file_associations() -> Result<(), String> {
+fn register_file_associations(_app: tauri::AppHandle) -> Result<(), String> {
     Err("File association registration is only supported on Windows".into())
 }
 
@@ -689,6 +826,11 @@ pub fn run() {
         .plugin(tauri_plugin_system_fonts::init())
         .setup(|app| {
             app.manage(WatcherState::default());
+
+            // 已注册文件关联的用户：升级后自动把 DefaultIcon 换成专用文档图标
+            // （每个版本只执行一次，不创建新关联）。
+            #[cfg(target_os = "windows")]
+            refresh_file_association_icon(app.handle());
 
             let window = app.get_webview_window("main").unwrap();
             let store = app.store(STORAGE_FILE)?;

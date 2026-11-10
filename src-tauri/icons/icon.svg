@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- MD Reader 应用图标：WPS 风格的简洁镂空 M（透明背景 + 渐变描边） -->
+  <defs>
+    <linearGradient id="mdr" x1="196" y1="196" x2="828" y2="828" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#12B8FF"/>
+    </linearGradient>
+  </defs>
+  <path d="M232 800 V264 L512 584 L792 264 V800"
+        fill="none" stroke="url(#mdr)" stroke-width="168"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

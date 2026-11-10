@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- .md 文件关联图标：放大的文档纸 + 折角 + 右下角单字母 M 角标 -->
+  <defs>
+    <linearGradient id="badge" x1="500" y1="500" x2="960" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#12B8FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 纸张轮廓（右上角切角），整体放大、留白收窄 -->
+  <path d="M168 64 H560 L800 304 V912 Q800 960 752 960 H168 Q120 960 120 912 V112 Q120 64 168 64 Z"
+        fill="#FFFFFF" stroke="#8B909A" stroke-width="48" stroke-linejoin="round"/>
+
+  <!-- 折角 -->
+  <path d="M560 64 L560 304 H800 Z"
+        fill="#E9EDF3" stroke="#8B909A" stroke-width="48" stroke-linejoin="round"/>
+
+  <!-- 正文示意行 -->
+  <g fill="#DCE3EE">
+    <rect x="200" y="400" width="440" height="48" rx="24"/>
+    <rect x="200" y="500" width="440" height="48" rx="24"/>
+    <rect x="200" y="600" width="340" height="48" rx="24"/>
+    <rect x="200" y="700" width="240" height="48" rx="24"/>
+  </g>
+
+  <!-- M 角标：矢量描边 M，精确居中于角标 (730,730)，小尺寸下轮廓更粗更清晰 -->
+  <rect x="500" y="500" width="460" height="460" rx="110" fill="url(#badge)"/>
+  <path d="M600 860 V600 L730 790 L860 600 V860"
+        fill="none" stroke="#FFFFFF" stroke-width="72"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
