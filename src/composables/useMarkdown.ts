@@ -7,7 +7,8 @@
  *   懒加载——动态 import，用不到就不进主包；改成静态导入会翻倍主包体积）
  *
  * 插件装配：anchor（标题锚点）、footnote、taskLists、emoji、mathPlugin
- * （自定义，见 mathPlugin.ts）。core ruler 给块级 token 打上
+ * （自定义，见 mathPlugin.ts）与 githubAlertsPlugin（自定义，GitHub 风格提示块）。
+ * core ruler 给块级 token 打上
  * data-source-line，编辑↔预览的滚动同步全靠它。
  */
 
@@ -23,6 +24,7 @@ import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
 import { full as emoji } from "markdown-it-emoji";
 import mathPlugin from "./mathPlugin";
+import githubAlertsPlugin from "./githubAlertsPlugin";
 
 const md: MarkdownIt = new MarkdownIt({
   html: true,
@@ -79,6 +81,10 @@ md.core.ruler.push("source_line_attrs", (state) => {
     }
   }
 });
+
+// GitHub Alerts 需在 source_line_attrs 之前把 blockquote token 转成提示块，
+// 这样 data-source-line 仍能写到转换后的开启 token 上。
+md.use(githubAlertsPlugin);
 
 const defaultLinkOpen =
   md.renderer.rules.link_open ||
