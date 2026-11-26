@@ -9,6 +9,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile, exists } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { copyText } from "./composables/useClipboard";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
@@ -200,26 +201,19 @@ async function openInExplorer(path: string) {
   }
 }
 
-/** 复制路径到剪贴板；非安全上下文降级为隐藏 textarea + execCommand。 */
+/** 复制路径到剪贴板，反馈沿用原有 toast 文案。 */
 async function copyPath(path: string) {
   if (!path) return;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(path);
-    } else {
-      const ta = document.createElement("textarea");
-      ta.value = path;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    }
+  if (await copyText(path)) {
     exportToast.value = t("tabs.copiedPath");
-  } catch {
+  } else {
     exportToast.value = t("tabs.copyFailed");
   }
+}
+
+/** 渲染区复制失败的提示统一走现有 toast。 */
+function onCodeBlockNotify(message: string) {
+  exportToast.value = message;
 }
 const dialogFileName = computed(() =>
   dialogTab.value ? basename(dialogTab.value.path) : ""
@@ -1780,6 +1774,7 @@ watch(
           :render-tick="renderTick"
           @rendered="onRendered"
           @internal-link="onInternalLink"
+          @notify="onCodeBlockNotify"
         />
       </section>
 

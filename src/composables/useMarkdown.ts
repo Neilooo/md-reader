@@ -24,6 +24,14 @@ import taskLists from "markdown-it-task-lists";
 import { full as emoji } from "markdown-it-emoji";
 import mathPlugin from "./mathPlugin";
 
+/** 代码块 HTML：把围栏语言（若有）写入 data-lang，供视图层渲染语言标签。 */
+function renderCodeBlock(codeHtml: string, lang: string): string {
+  const langAttr = lang
+    ? ` data-lang="${md.utils.escapeHtml(lang).replace(/'/g, "&#39;")}"`
+    : "";
+  return `<pre class="hljs"${langAttr}><code>${codeHtml}</code></pre>`;
+}
+
 const md: MarkdownIt = new MarkdownIt({
   html: true,
   linkify: true,
@@ -37,20 +45,15 @@ const md: MarkdownIt = new MarkdownIt({
     }
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return (
-          '<pre class="hljs"><code>' +
-          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-          "</code></pre>"
+        return renderCodeBlock(
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value,
+          lang
         );
       } catch {
         /* ignore */
       }
     }
-    return (
-      '<pre class="hljs"><code>' +
-      md.utils.escapeHtml(str) +
-      "</code></pre>"
-    );
+    return renderCodeBlock(md.utils.escapeHtml(str), lang);
   },
 });
 
@@ -228,7 +231,7 @@ const ALLOWED_URI =
 
 /**
  * 源文本 → HTML。front matter 单独渲染成表格，正文走 markdown-it，
- * 最后 DOMPurify 净化（白名单放行 target/data-math/data-source-line）。
+ * 最后 DOMPurify 净化（白名单放行 target/data-math/data-source-line/data-lang）。
  */
 export function renderMarkdown(source: string): string {
   const block = splitFrontMatter(source);
@@ -237,7 +240,7 @@ export function renderMarkdown(source: string): string {
   const rawFrontMatter = block ? renderFrontMatter(block) : "";
   const raw = rawFrontMatter + md.render(body, { sourceLineOffset: offset });
   return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ["target", "data-math", "data-source-line"],
+    ADD_ATTR: ["target", "data-math", "data-source-line", "data-lang"],
     ALLOWED_URI_REGEXP: ALLOWED_URI,
   });
 }

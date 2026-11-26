@@ -393,6 +393,76 @@ body {
   text-align: left;
 }
 
+/* ---- injected code block actions ---- */
+.markdown-body .code-block {
+  position: relative;
+  margin: 1em 0;
+}
+.markdown-body .code-block > pre,
+.markdown-body .code-block > .mermaid-block {
+  margin: 0;
+  border-radius: 0 0 6px 6px;
+}
+.markdown-body .code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 26px;
+  padding: 2px 6px 2px 10px;
+  background: var(--bg-toolbar);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+.markdown-body .code-block-lang {
+  margin-right: auto;
+  color: var(--fg-muted);
+  font-size: 0.78em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+.markdown-body .code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.markdown-body .code-copy-btn:hover {
+  background: var(--bg-btn-hover);
+  color: var(--fg);
+}
+.markdown-body .code-copy-btn:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+.markdown-body .code-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.markdown-body .code-copy-btn .icon-check {
+  display: none;
+}
+.markdown-body .code-copy-btn.is-copied {
+  color: var(--mdr-success);
+}
+.markdown-body .code-copy-btn.is-copied .icon-copy {
+  display: none;
+}
+.markdown-body .code-copy-btn.is-copied .icon-check {
+  display: block;
+}
+:root[data-theme="dark"] .markdown-body .code-block > pre {
+  border-radius: 0 0 8px 8px;
+}
+
 /* ---- header anchors ---- */
 .markdown-body .header-anchor {
   text-decoration: none;
