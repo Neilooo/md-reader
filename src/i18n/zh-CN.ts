@@ -2,7 +2,8 @@
  * 简体中文文案表。分组与使用方对应：app/toolbar（App.vue 外壳）、
  * find（FindBar）、search（SearchPanel）、settings（SettingsDialog 阅读页）、
  * export（导出菜单与结果提示）、editor（编辑与未保存对话框）、
- * toc（TocPanel）、tabs（TabBar）、pdfStyle（SettingsDialog PDF 页）、
+ * toc（TocPanel）、tabs（TabBar）、codeBlock（渲染区代码块操作）、
+ * pdfStyle（SettingsDialog PDF 页）、
  * errors（通用错误）、shortcuts（ShortcutsDialog）。
  * 本文件同时是 MessageSchema 的类型来源：新增 key 必须先加这里，
  * en-US.ts 会按类型检查强制同步。
@@ -215,6 +216,14 @@ const zhCN = {
     refresh: "刷新",
     copyPath: "复制路径",
     copiedPath: "路径已复制",
+    copyFailed: "复制失败",
+  },
+  // ---- 渲染区代码块 / Mermaid 操作 ----
+  codeBlock: {
+    copy: "复制代码",
+    copied: "已复制代码",
+    copyMermaid: "复制 Mermaid 源码",
+    copiedMermaid: "已复制源码",
     copyFailed: "复制失败",
   },
   // ---- PDF 导出样式页（SettingsDialog PDF 页；tpl 为 24 套配色模板名）----

@@ -88,6 +88,8 @@ export async function exportToPng(
     parent.removeChild(el);
   });
   clone.querySelectorAll(".header-anchor").forEach((el) => el.remove());
+  // Same cleanup as buildExportHtml: drop injected copy controls and labels.
+  clone.querySelectorAll(".code-block-header").forEach((el) => el.remove());
   clone.classList.add("mdr-png-export");
 
   await inlineImages(clone);

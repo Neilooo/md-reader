@@ -79,6 +79,8 @@ export async function buildExportHtml(
     parent.removeChild(el);
   });
   clone.querySelectorAll(".header-anchor").forEach((el) => el.remove());
+  // 导出物保持原貌：去掉注入的复制按钮与语言标签头。
+  clone.querySelectorAll(".code-block-header").forEach((el) => el.remove());
 
   await inlineImages(clone);
   ensureSvgNamespace(clone);

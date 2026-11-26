@@ -208,6 +208,13 @@ const enUS = {
     copiedPath: "Path copied",
     copyFailed: "Copy failed",
   },
+  codeBlock: {
+    copy: "Copy code",
+    copied: "Code copied",
+    copyMermaid: "Copy Mermaid source",
+    copiedMermaid: "Source copied",
+    copyFailed: "Copy failed",
+  },
   pdfStyle: {
     title: "PDF Export Style",
     cat: {
