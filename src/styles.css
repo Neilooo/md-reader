@@ -283,25 +283,20 @@ body {
 .markdown-body .markdown-alert-title {
   display: flex;
   align-items: center;
-  gap: 0.5em;
   margin: 0 0 0.4em;
   color: var(--alert-accent);
   font-weight: 600;
   line-height: 1.4;
 }
-.markdown-body .markdown-alert-title::before {
-  content: "";
+.markdown-body .markdown-alert-title .octicon {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.5rem;
+  flex: 0 0 16px;
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  flex: 0 0 10px;
-  background: currentColor;
-  border-radius: 50%;
-}
-.markdown-body .markdown-alert-warning .markdown-alert-title::before,
-.markdown-body .markdown-alert-caution .markdown-alert-title::before {
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
 }
 .markdown-body .markdown-alert-note {
   --alert-accent: var(--alert-note-accent);

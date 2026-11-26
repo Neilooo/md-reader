@@ -46,16 +46,13 @@ blockquote {
 }
 .markdown-alert > :last-child { margin-bottom: 0; }
 .markdown-alert-title {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center;
   margin: 0 0 6px; color: var(--alert-accent); font-weight: 600;
 }
-.markdown-alert-title::before {
-  content: ""; display: inline-block; width: 10px; height: 10px;
-  flex: 0 0 10px; background: currentColor; border-radius: 50%;
-}
-.markdown-alert-warning .markdown-alert-title::before,
-.markdown-alert-caution .markdown-alert-title::before {
-  border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+.markdown-alert-title .octicon {
+  width: 16px; height: 16px; margin-right: 0.5rem;
+  flex: 0 0 16px; display: inline-block; overflow: visible !important;
+  vertical-align: text-bottom; fill: currentColor;
 }
 .markdown-alert-note {
   --alert-accent: var(--pdf-alert-note-fg, #0969da);
