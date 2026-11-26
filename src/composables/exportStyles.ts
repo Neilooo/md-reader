@@ -32,6 +32,56 @@ blockquote {
   padding: 0 1em; color: var(--pdf-quote-fg, #57606a);
   border-left: 4px solid var(--pdf-quote-border, #d0d7de); margin: var(--pdf-block-gap, 1em) 0;
 }
+.markdown-alert {
+  --alert-accent: var(--pdf-alert-note-fg, #0969da);
+  --alert-bg: var(--pdf-alert-note-bg, #ddf4ff);
+  --alert-border: var(--pdf-alert-note-border, #b6d7f8);
+  margin: var(--pdf-block-gap, 1em) 0;
+  padding: 12px 14px;
+  color: var(--pdf-fg, #24292f);
+  background: var(--alert-bg);
+  border: 1px solid var(--alert-border);
+  border-left: 4px solid var(--alert-accent);
+  border-radius: 6px;
+}
+.markdown-alert > :last-child { margin-bottom: 0; }
+.markdown-alert-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 6px; color: var(--alert-accent); font-weight: 600;
+}
+.markdown-alert-title::before {
+  content: ""; display: inline-block; width: 10px; height: 10px;
+  flex: 0 0 10px; background: currentColor; border-radius: 50%;
+}
+.markdown-alert-warning .markdown-alert-title::before,
+.markdown-alert-caution .markdown-alert-title::before {
+  border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.markdown-alert-note {
+  --alert-accent: var(--pdf-alert-note-fg, #0969da);
+  --alert-bg: var(--pdf-alert-note-bg, #ddf4ff);
+  --alert-border: var(--pdf-alert-note-border, #b6d7f8);
+}
+.markdown-alert-tip {
+  --alert-accent: var(--pdf-alert-tip-fg, #1a7f37);
+  --alert-bg: var(--pdf-alert-tip-bg, #dafbe1);
+  --alert-border: var(--pdf-alert-tip-border, #aceebb);
+}
+.markdown-alert-important {
+  --alert-accent: var(--pdf-alert-important-fg, #8250df);
+  --alert-bg: var(--pdf-alert-important-bg, #fbefff);
+  --alert-border: var(--pdf-alert-important-border, #e6d6ff);
+}
+.markdown-alert-warning {
+  --alert-accent: var(--pdf-alert-warning-fg, #9a6700);
+  --alert-bg: var(--pdf-alert-warning-bg, #fff8c5);
+  --alert-border: var(--pdf-alert-warning-border, #fae17d);
+}
+.markdown-alert-caution {
+  --alert-accent: var(--pdf-alert-caution-fg, #cf222e);
+  --alert-bg: var(--pdf-alert-caution-bg, #ffebe9);
+  --alert-border: var(--pdf-alert-caution-border, #ffcecb);
+}
 code {
   background: var(--pdf-code-bg, #f6f8fa);
   color: var(--pdf-code-fg, inherit);

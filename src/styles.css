@@ -29,6 +29,16 @@
   --editor-active-line-bg: rgba(0, 0, 0, 0.025);
   --blockquote-border: #d0d7de;
   --blockquote-fg: #57606a;
+  --alert-note-accent: #0969da;
+  --alert-note-bg: rgba(9, 105, 218, 0.08);
+  --alert-tip-accent: #1a7f37;
+  --alert-tip-bg: rgba(26, 127, 55, 0.08);
+  --alert-important-accent: #8250df;
+  --alert-important-bg: rgba(130, 80, 223, 0.08);
+  --alert-warning-accent: #9a6700;
+  --alert-warning-bg: rgba(154, 103, 0, 0.1);
+  --alert-caution-accent: #cf222e;
+  --alert-caution-bg: rgba(207, 34, 46, 0.08);
   --table-border: #d0d7de;
   --table-stripe: #f6f8fa;
   --scrollbar-track: #f6f8fa;
@@ -103,6 +113,16 @@
   --editor-active-line-bg: rgba(255, 255, 255, 0.035);
   --blockquote-border: #3a4350;
   --blockquote-fg: #a5adba;
+  --alert-note-accent: #6bb7d6;
+  --alert-note-bg: rgba(107, 183, 214, 0.12);
+  --alert-tip-accent: #6aa878;
+  --alert-tip-bg: rgba(106, 168, 120, 0.12);
+  --alert-important-accent: #b083f0;
+  --alert-important-bg: rgba(176, 131, 240, 0.12);
+  --alert-warning-accent: #d29922;
+  --alert-warning-bg: rgba(210, 153, 34, 0.14);
+  --alert-caution-accent: #d16d68;
+  --alert-caution-bg: rgba(209, 109, 104, 0.12);
   --table-border: #323b48;
   --table-stripe: #151d27;
   --scrollbar-track: #0d1117;
@@ -245,6 +265,63 @@ body {
   padding: 0 1em;
   color: var(--blockquote-fg);
   border-left: 4px solid var(--blockquote-border);
+}
+.markdown-body .markdown-alert {
+  --alert-accent: var(--alert-note-accent);
+  --alert-bg: var(--alert-note-bg);
+  margin: 0 0 1em;
+  padding: 0.75em 1em;
+  color: var(--fg);
+  background: var(--alert-bg);
+  border: 1px solid color-mix(in srgb, var(--alert-accent) 30%, transparent);
+  border-left: 4px solid var(--alert-accent);
+  border-radius: 6px;
+}
+.markdown-body .markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0 0.4em;
+  color: var(--alert-accent);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.markdown-body .markdown-alert-title::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.markdown-body .markdown-alert-warning .markdown-alert-title::before,
+.markdown-body .markdown-alert-caution .markdown-alert-title::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.markdown-body .markdown-alert-note {
+  --alert-accent: var(--alert-note-accent);
+  --alert-bg: var(--alert-note-bg);
+}
+.markdown-body .markdown-alert-tip {
+  --alert-accent: var(--alert-tip-accent);
+  --alert-bg: var(--alert-tip-bg);
+}
+.markdown-body .markdown-alert-important {
+  --alert-accent: var(--alert-important-accent);
+  --alert-bg: var(--alert-important-bg);
+}
+.markdown-body .markdown-alert-warning {
+  --alert-accent: var(--alert-warning-accent);
+  --alert-bg: var(--alert-warning-bg);
+}
+.markdown-body .markdown-alert-caution {
+  --alert-accent: var(--alert-caution-accent);
+  --alert-bg: var(--alert-caution-bg);
 }
 .markdown-body hr {
   border: 0;
