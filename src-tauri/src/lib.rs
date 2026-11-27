@@ -922,7 +922,7 @@ fn run_check(program: &str, arg: &str) -> Option<String> {
 }
 
 /// 探测 pandoc 可用性（设置页展示依赖状态用）。
-#[tauri::command]
+#[tauri::command(async)]
 fn check_pandoc() -> PandocInfo {
     let pandoc = run_check("pandoc", "--version");
     let xelatex = run_check("xelatex", "--version");
@@ -949,7 +949,7 @@ pub struct ExportOptions {
 
 /// 用 pandoc 把渲染好的 HTML 转成 DOCX / 单文件 HTML。
 /// PDF 分支已刻意移除——PDF 走 Edge headless（见 pdf_export.rs）。
-#[tauri::command]
+#[tauri::command(async)]
 fn export_with_pandoc(opts: ExportOptions) -> Result<String, String> {
     let format = opts.format.to_lowercase();
     if !matches!(format.as_str(), "docx" | "html") {
