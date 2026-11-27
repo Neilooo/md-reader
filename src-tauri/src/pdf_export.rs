@@ -156,7 +156,8 @@ fn run_edge_print(
     })
 }
 
-#[tauri::command]
+/// 导出 PDF（命令入口）
+#[tauri::command(async)]
 pub fn export_pdf_via_edge(
     opts: PdfExportOptions,
 ) -> Result<PdfExportResult, PdfExportError> {
